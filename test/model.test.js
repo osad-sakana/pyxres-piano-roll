@@ -3,115 +3,187 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const Model = require("../js/model.js");
 
-test("createProject: 初期状態が設計書§3.2のスキーマに従う", () => {
+// s1にパターンを1つ持つ最小プロジェクト
+function baseProject() {
+  let p = Model.addSong(Model.createProject());
+  p = Model.addPattern(p, "s1");
+  return p;
+}
+
+test("createProject: v2スキーマ（songs直下・patternsは曲が内包）", () => {
   const p = Model.createProject();
-  assert.equal(p.formatVersion, 1);
-  assert.deepEqual(p.patterns, []);
+  assert.equal(p.formatVersion, 2);
   assert.deepEqual(p.songs, []);
+  assert.equal("patterns" in p, false);
   assert.equal(p.export.musicSlots.length, 8);
-  assert.ok(p.export.musicSlots.every((s) => s === null));
-  assert.equal(typeof p.meta.title, "string");
 });
 
-test("createPattern: 既定値（speed=30, tone/volume/effectは循環配列）", () => {
+test("createSong: bpm既定120・空パターン・1チャンネル", () => {
+  const s = Model.createSong("s1");
+  assert.equal(s.bpm, 120);
+  assert.deepEqual(s.patterns, []);
+  assert.deepEqual(s.channels, [[]]);
+});
+
+test("createPattern: rateMode既定normal・speedは持たない", () => {
   const pat = Model.createPattern("p1");
-  assert.equal(pat.id, "p1");
-  assert.equal(pat.speed, 30);
+  assert.equal(pat.rateMode, "normal");
+  assert.equal("speed" in pat, false);
   assert.deepEqual(pat.notes, Array(16).fill(-1));
-  assert.deepEqual(pat.tones, [0]);
-  assert.deepEqual(pat.volumes, [7]);
-  assert.deepEqual(pat.effects, [0]);
 });
 
-test("addPattern: 元のprojectを変更しない（イミュータブル）", () => {
-  const p1 = Model.createProject();
-  const p2 = Model.addPattern(p1);
-  assert.equal(p1.patterns.length, 0);
-  assert.equal(p2.patterns.length, 1);
-  assert.notEqual(p1, p2);
+test("addPattern: 曲にパターンが追加され、元projectは不変", () => {
+  const p1 = Model.addSong(Model.createProject());
+  const p2 = Model.addPattern(p1, "s1");
+  assert.equal(p1.songs[0].patterns.length, 0);
+  assert.equal(p2.songs[0].patterns.length, 1);
 });
 
-test("nextId: 既存IDと衝突しない連番を生成する", () => {
-  assert.equal(Model.nextId([], "p"), "p1");
-  assert.equal(Model.nextId([{ id: "p1" }, { id: "p5" }], "p"), "p6");
+test("addPattern: 1曲64個の構造的上限（Pyxel 64音枠対応）", () => {
+  let p = Model.addSong(Model.createProject());
+  for (let i = 0; i < Model.MAX_PATTERNS_PER_SONG; i++) {
+    p = Model.addPattern(p, "s1");
+  }
+  assert.throws(() => Model.addPattern(p, "s1"), /64/);
 });
 
-test("setNoteAt: 範囲内の値を設定し、元パターンを変更しない", () => {
-  const pat = Model.createPattern("p1");
-  const updated = Model.setNoteAt(pat, 3, 24);
-  assert.equal(updated.notes[3], 24);
-  assert.equal(pat.notes[3], -1);
+test("updatePattern/removePattern: 曲内のパターンを対象にする", () => {
+  let p = baseProject();
+  p = Model.updatePattern(p, "s1", "p1", { name: "ベース" });
+  assert.equal(p.songs[0].patterns[0].name, "ベース");
+  p = Model.updateSong(p, "s1", { channels: [["p1", "p1"]] });
+  p = Model.removePattern(p, "s1", "p1");
+  assert.deepEqual(p.songs[0].patterns, []);
+  assert.deepEqual(p.songs[0].channels, [[]]); // 配置も除去
 });
 
-test("setNoteAt: note範囲(-1〜59)外は拒否する", () => {
-  const pat = Model.createPattern("p1");
-  assert.throws(() => Model.setNoteAt(pat, 0, 60));
-  assert.throws(() => Model.setNoteAt(pat, 0, -2));
+test("bpmToSpeed: speed = round(1800/bpm)（1列=16分音符）", () => {
+  assert.equal(Model.bpmToSpeed(120), 15);
+  assert.equal(Model.bpmToSpeed(90), 20);
+  assert.equal(Model.bpmToSpeed(60), 30);
+  assert.equal(Model.bpmToSpeed(900), 2);
 });
 
-test("resizePattern: 伸長時は休符(-1)で埋める", () => {
-  const pat = Model.setNoteAt(Model.createPattern("p1"), 0, 12);
-  const longer = Model.resizePattern(pat, 20);
-  assert.equal(longer.notes.length, 20);
-  assert.equal(longer.notes[0], 12);
-  assert.equal(longer.notes[19], -1);
-  const shorter = Model.resizePattern(longer, 4);
-  assert.equal(shorter.notes.length, 4);
+test("patternSpeed: rateModeでspeedを1/2倍・2倍に変換", () => {
+  const song = { ...Model.createSong("s1"), bpm: 120 }; // base speed 15
+  assert.equal(Model.patternSpeed(song, { rateMode: "normal" }), 15);
+  assert.equal(Model.patternSpeed(song, { rateMode: "double" }), 8); // 2倍再生=半分のtick
+  assert.equal(Model.patternSpeed(song, { rateMode: "half" }), 30);
 });
 
-test("validatePattern: volume/effect/speedの範囲検査（§6.3）", () => {
+test("patternSpeed: doubleでもspeedは1を下回らない", () => {
+  const song = { ...Model.createSong("s1"), bpm: 900 }; // base speed 2
+  assert.equal(Model.patternSpeed(song, { rateMode: "double" }), 1);
+});
+
+test("resolvePattern: speedが確定した再生用パターンを返す", () => {
+  const song = { ...Model.createSong("s1"), bpm: 90 };
+  const resolved = Model.resolvePattern(song, Model.createPattern("p1"));
+  assert.equal(resolved.speed, 20);
+});
+
+test("validatePattern: rateMode検査を含む（speedは検査しない）", () => {
   const ok = Model.createPattern("p1");
   assert.deepEqual(Model.validatePattern(ok), []);
-  const bad = { ...ok, volumes: [8], effects: [6], speed: 0 };
-  const errs = Model.validatePattern(bad);
-  assert.equal(errs.length, 3);
+  const bad = { ...ok, volumes: [8], rateMode: "triple" };
+  assert.equal(Model.validatePattern(bad).length, 2);
 });
 
-test("addChannel: 4チャンネルを超える追加は構造的に不可（§6.3）", () => {
-  let song = Model.createSong("s1");
-  song = Model.addChannel(song);
-  song = Model.addChannel(song);
-  song = Model.addChannel(song);
-  assert.equal(song.channels.length, 4);
-  assert.throws(() => Model.addChannel(song));
+test("validateSong: BPM範囲（20〜900）を検査", () => {
+  assert.deepEqual(Model.validateSong(Model.createSong("s1")), []);
+  assert.equal(Model.validateSong({ ...Model.createSong("s1"), bpm: 10 }).length, 1);
+  assert.equal(Model.validateSong({ ...Model.createSong("s1"), bpm: 1000 }).length, 1);
 });
 
-test("allocateExport: パターンIDの参照が重複排除され登場順にsoundsへ割り当たる（§3.3）", () => {
+test("allocateExport: 曲内共有は同一sound、曲が違えば別sound", () => {
   let p = Model.createProject();
-  const pa = { ...Model.createPattern("pa"), notes: [24] };
-  const pb = { ...Model.createPattern("pb"), notes: [26] };
-  p = { ...p, patterns: [pa, pb] };
-  const s1 = { id: "s1", name: "", channels: [["pa", "pb", "pa"], ["pb"]] };
-  p = { ...p, songs: [s1], export: { musicSlots: ["s1", null, null, null, null, null, null, null] } };
+  p = Model.addSong(p); // s1
+  p = Model.addSong(p); // s2
+  p = Model.addPattern(p, "s1"); // s1/p1
+  p = Model.addPattern(p, "s2"); // s2/p1（IDは曲ごとに独立）
+  p = Model.updatePattern(p, "s1", "p1", { notes: [24] });
+  p = Model.updatePattern(p, "s2", "p1", { notes: [36] });
+  p = Model.updateSong(p, "s1", { channels: [["p1", "p1"]], bpm: 120 });
+  p = Model.updateSong(p, "s2", { channels: [["p1"]], bpm: 60 });
+  p = { ...p, export: { musicSlots: ["s1", "s2", null, null, null, null, null, null] } };
 
   const result = Model.allocateExport(p);
   assert.equal(result.ok, true);
-  assert.equal(result.sounds.length, 64);
   assert.deepEqual(result.sounds[0].notes, [24]);
-  assert.deepEqual(result.sounds[1].notes, [26]);
-  assert.deepEqual(result.sounds[2].notes, []); // 未使用枠は空エントリ
-  assert.equal(result.musics.length, 8);
-  assert.deepEqual(result.musics[0].seqs, [[0, 1, 0], [1]]);
-  assert.deepEqual(result.musics[1].seqs, []); // 空トラック
+  assert.equal(result.sounds[0].speed, 15); // s1: bpm120
+  assert.deepEqual(result.sounds[1].notes, [36]);
+  assert.equal(result.sounds[1].speed, 30); // s2: bpm60
+  assert.deepEqual(result.musics[0].seqs, [[0, 0]]); // 曲内共有はindex共有
+  assert.deepEqual(result.musics[1].seqs, [[1]]);
 });
 
-test("allocateExport: ユニークパターン64超過で拒否し超過数と曲別消費数を提示（§3.3）", () => {
+test("allocateExport: rateModeが書き出しspeedへ反映される", () => {
+  let p = baseProject();
+  p = Model.updatePattern(p, "s1", "p1", { rateMode: "double" });
+  p = Model.updateSong(p, "s1", { channels: [["p1"]] });
+  p = { ...p, export: { musicSlots: ["s1", null, null, null, null, null, null, null] } };
+  const result = Model.allocateExport(p);
+  assert.equal(result.sounds[0].speed, 8); // bpm120: 15 → double → 8
+});
+
+test("allocateExport: 合計64超過で拒否し超過数と曲別消費数を提示", () => {
   let p = Model.createProject();
-  const patterns = [];
-  const ids = [];
-  for (let i = 0; i < 70; i++) {
-    patterns.push(Model.createPattern(`p${i}`));
-    ids.push(`p${i}`);
-  }
-  const song = { id: "s1", name: "曲A", channels: [ids] };
-  p = {
-    ...p,
-    patterns,
-    songs: [song],
-    export: { musicSlots: ["s1", null, null, null, null, null, null, null] },
-  };
+  p = Model.addSong(p); // s1
+  p = Model.addSong(p); // s2
+  for (let i = 0; i < 40; i++) p = Model.addPattern(p, "s1");
+  for (let i = 0; i < 30; i++) p = Model.addPattern(p, "s2");
+  p = Model.updateSong(p, "s1", { channels: [p.songs[0].patterns.map((x) => x.id)] });
+  p = Model.updateSong(p, "s2", { channels: [p.songs[1].patterns.map((x) => x.id)] });
+  p = { ...p, export: { musicSlots: ["s1", "s2", null, null, null, null, null, null] } };
+
   const result = Model.allocateExport(p);
   assert.equal(result.ok, false);
   assert.equal(result.excess, 6);
-  assert.deepEqual(result.perSong, [{ songId: "s1", name: "曲A", count: 70 }]);
+  assert.deepEqual(
+    result.perSong.map((s) => s.count),
+    [40, 30]
+  );
+});
+
+test("migrateProject: v1のグローバルパターンを参照曲へ取り込みbpmへ変換", () => {
+  const v1 = {
+    formatVersion: 1,
+    meta: { title: "旧", created: "", modified: "" },
+    patterns: [
+      { id: "p1", name: "A", notes: [24], tones: [1], volumes: [7], effects: [0], speed: 20 },
+      { id: "p2", name: "B", notes: [36], tones: [0], volumes: [7], effects: [0], speed: 20 },
+      { id: "p9", name: "孤児", notes: [1], tones: [0], volumes: [7], effects: [0], speed: 30 },
+    ],
+    songs: [
+      { id: "s1", name: "曲A", channels: [["p1", "p2", "p1"]] },
+      { id: "s2", name: "曲B", channels: [["p1"]] }, // p1を曲間共有していた
+    ],
+    export: { musicSlots: ["s1", "s2", null, null, null, null, null, null] },
+  };
+  const v2 = Model.migrateProject(v1);
+  assert.equal(v2.formatVersion, 2);
+  // 各曲が自分のパターンを持つ（曲間共有は複製に変わる）
+  assert.deepEqual(v2.songs[0].patterns.map((p) => p.id), ["p1", "p2", "p9"]); // 孤児は先頭曲へ
+  assert.deepEqual(v2.songs[1].patterns.map((p) => p.id), ["p1"]);
+  assert.equal(v2.songs[1].patterns[0].name, "A");
+  // speed20 → bpm90
+  assert.equal(v2.songs[0].bpm, 90);
+  assert.equal(v2.songs[0].patterns[0].rateMode, "normal");
+  assert.deepEqual(v2.export.musicSlots.slice(0, 2), ["s1", "s2"]);
+});
+
+test("migrateProject: v2はそのまま返す・未知バージョンは拒否", () => {
+  const p = baseProject();
+  assert.equal(Model.migrateProject(p), p);
+  assert.throws(() => Model.migrateProject({ formatVersion: 99 }), /formatVersion/);
+});
+
+test("setNoteAt/resizePattern: 従来通り（パターン単体操作）", () => {
+  const pat = Model.createPattern("p1");
+  const updated = Model.setNoteAt(pat, 3, 24);
+  assert.equal(updated.notes[3], 24);
+  assert.throws(() => Model.setNoteAt(pat, 0, 60));
+  const longer = Model.resizePattern(updated, 20);
+  assert.equal(longer.notes.length, 20);
+  assert.equal(longer.notes[19], -1);
 });
