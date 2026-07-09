@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pyxel互換 音楽エディタ</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="transport-bar">
+  <button id="btn-play-pattern" title="選択中パターンを再生">▶ パターン</button>
+  <button id="btn-play-song" title="選択中の曲を再生">▶ 曲</button>
+  <button id="btn-stop">■ 停止</button>
+  <label class="loop-label"><input type="checkbox" id="chk-loop"> ループ</label>
+  <span class="spacer"></span>
+  <input type="text" id="project-title" placeholder="プロジェクト名">
+  <button id="btn-export">pyxres書き出し</button>
+  <button id="btn-save-json">JSON保存</button>
+  <button id="btn-load-json">JSON読み込み</button>
+  <input type="file" id="file-load-json" accept=".json,application/json" hidden>
+  <button id="btn-help" title="制約と使い方">?</button>
+</header>
+
+<div id="main-layout">
+  <aside id="sidebar">
+    <section class="list-section">
+      <h2>曲 <button id="btn-add-song" class="add-btn">＋</button></h2>
+      <ul id="song-list"></ul>
+    </section>
+    <section class="list-section">
+      <h2>パターン <button id="btn-add-pattern" class="add-btn">＋</button></h2>
+      <ul id="pattern-list"></ul>
+    </section>
+  </aside>
+
+  <main id="editor">
+    <section id="channel-lane">
+      <h2 id="channel-lane-title">曲構造</h2>
+      <div id="lane-rows"></div>
+    </section>
+    <section id="piano-roll-section">
+      <h2 id="piano-roll-title">ピアノロール</h2>
+      <div id="piano-roll-scroll">
+        <canvas id="piano-roll"></canvas>
+      </div>
+    </section>
+    <section id="property-panel">
+      <!-- PropertyPanelが動的に描画 -->
+    </section>
+  </main>
+</div>
+
+<dialog id="export-dialog">
+  <h2>pyxres書き出し</h2>
+  <p>8つの音楽スロットへ曲を割り当てます（§3.3）。</p>
+  <div id="export-slots"></div>
+  <div id="export-validation"></div>
+  <div class="dialog-buttons">
+    <button id="btn-do-export">書き出し</button>
+    <button id="btn-close-export">閉じる</button>
+  </div>
+</dialog>
+
+<dialog id="help-dialog">
+  <h2>Pyxel互換 音楽エディタ</h2>
+  <p>このエディタは <code>.pyxres</code>（format_version = 1）互換の音楽データを作成します。
+  フォーマット固有の制約のため、以下の上限を超える編集はできません:</p>
+  <ul>
+    <li>音域: 60音階（C0〜B4）</li>
+    <li>波形: 4種（三角波・矩形波・パルス波・ノイズ）</li>
+    <li>音量: 8段階（0〜7）</li>
+    <li>エフェクト: 6種（なし・スライド・ビブラート・フェードアウト・ハーフ・クォーター）</li>
+    <li>書き出し時: ユニークパターン64個以内・曲8個以内・4チャンネル以内</li>
+  </ul>
+  <p>MML表現は保存できません。編集の正本は内部JSON（自動保存＋JSON保存）で、
+  pyxresは書き出し専用です。</p>
+  <div class="dialog-buttons">
+    <button id="btn-close-help">閉じる</button>
+  </div>
+</dialog>
+
+<script src="js/model.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/ui/transport.js"></script>
+<script src="js/ui/lists.js"></script>
+<script src="js/ui/dialogs.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
