@@ -101,6 +101,51 @@ const PianoRollView = (() => {
     drag = null;
   }
 
+  // 選択列がスクロール外に出ないよう追従させる
+  function scrollColIntoView(col) {
+    const scroll = document.getElementById("piano-roll-scroll");
+    const left = KEY_W + col * COL_W;
+    if (left - KEY_W < scroll.scrollLeft) {
+      scroll.scrollLeft = left - KEY_W;
+    } else if (left + COL_W > scroll.scrollLeft + scroll.clientWidth) {
+      scroll.scrollLeft = left + COL_W - scroll.clientWidth;
+    }
+  }
+
+  function onKeyDown(event) {
+    // 入力欄へのタイピングやダイアログ表示中は奪わない
+    const tag = document.activeElement ? document.activeElement.tagName : "";
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
+    if (document.querySelector("dialog[open]")) return;
+
+    const pattern = app.currentPattern();
+    if (!pattern) return;
+    const state = app.getState();
+    const cols = pattern.notes.length;
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const delta = event.key === "ArrowLeft" ? -1 : 1;
+      const current = state.selectedCol !== null ? state.selectedCol : delta > 0 ? -1 : cols;
+      const col = Math.min(cols - 1, Math.max(0, current + delta));
+      app.setState({ selectedCol: col });
+      scrollColIntoView(col);
+      return;
+    }
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      if (state.selectedCol === null) return;
+      const current = pattern.notes[state.selectedCol];
+      if (current < 0) return; // 休符列は対象外
+      const delta = event.key === "ArrowUp" ? 1 : -1;
+      const note = current + delta;
+      if (note < 0 || note > Model.NOTE_MAX) return; // 音域端では止める
+      setNote(state.selectedCol, note);
+      previewNote(pattern, state.selectedCol, note);
+    }
+  }
+
   function draw(state) {
     const pattern = app.currentPattern();
     const cols = pattern ? pattern.notes.length : 0;
@@ -187,6 +232,7 @@ const PianoRollView = (() => {
     canvas.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("keydown", onKeyDown);
   }
 
   function render(state) {
