@@ -4,6 +4,8 @@
 const Storage = (() => {
   const STORAGE_KEY = "pyxel-music-editor-project";
   const AUTOSAVE_DEBOUNCE_MS = 1000;
+  // ブラウザではグローバルのModel、Nodeテストではrequireで解決する
+  const ModelDep = typeof Model !== "undefined" ? Model : require("./model.js");
 
   function serializeProject(project) {
     return JSON.stringify(project, null, 2);
@@ -16,16 +18,15 @@ const Storage = (() => {
     } catch (error) {
       throw new Error(`JSONの解析に失敗しました: ${error.message}`);
     }
-    if (data.formatVersion !== 1) {
-      throw new Error(`未対応のformatVersionです: ${data.formatVersion}`);
+    // v1は自動マイグレーション、未対応バージョンはここで拒否される
+    const project = ModelDep.migrateProject(data);
+    if (!Array.isArray(project.songs)) {
+      throw new Error("songsが見つかりません。プロジェクトJSONではない可能性があります");
     }
-    if (!Array.isArray(data.patterns) || !Array.isArray(data.songs)) {
-      throw new Error("patterns/songsが見つかりません。プロジェクトJSONではない可能性があります");
-    }
-    if (!data.export || !Array.isArray(data.export.musicSlots)) {
+    if (!project.export || !Array.isArray(project.export.musicSlots)) {
       throw new Error("export.musicSlotsが見つかりません");
     }
-    return data;
+    return project;
   }
 
   function saveToLocalStorage(project, ls = globalThis.localStorage) {
