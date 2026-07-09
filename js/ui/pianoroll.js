@@ -15,6 +15,8 @@ const PianoRollView = (() => {
   let ctx = null;
   // ドラッグ状態（移調・移動 / クリック削除の判定）
   let drag = null;
+  // 直近に入力した音程。休符列でのEnter入力に使う
+  let lastNote = 24;
 
   function noteName(value) {
     return `${NOTE_NAMES[value % 12]}${Math.floor(value / 12)}`;
@@ -41,6 +43,7 @@ const PianoRollView = (() => {
   }
 
   function setNote(col, value) {
+    if (value >= 0) lastNote = value;
     const state = app.getState();
     app.updateProject(
       (p) => Model.updatePattern(p, state.patternId, {
@@ -51,6 +54,7 @@ const PianoRollView = (() => {
   }
 
   function moveNote(fromCol, toCol, note) {
+    if (note >= 0) lastNote = note;
     const state = app.getState();
     app.updateProject(
       (p) => Model.updatePattern(p, state.patternId, {
@@ -143,6 +147,22 @@ const PianoRollView = (() => {
       if (note < 0 || note > Model.NOTE_MAX) return; // 音域端では止める
       setNote(state.selectedCol, note);
       previewNote(pattern, state.selectedCol, note);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (state.selectedCol === null) return;
+      const current = pattern.notes[state.selectedCol];
+      if (current < 0) {
+        // 休符列: 直近に入力した音程で配置
+        setNote(state.selectedCol, lastNote);
+        previewNote(pattern, state.selectedCol, lastNote);
+      } else {
+        // 音符列: 休符に変更（音程は記憶し、再度Enterで復活できるようにする）
+        lastNote = current;
+        setNote(state.selectedCol, -1);
+      }
     }
   }
 

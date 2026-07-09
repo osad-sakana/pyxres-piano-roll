@@ -40,6 +40,7 @@
     </section>
     <section id="piano-roll-section">
       <h2 id="piano-roll-title">ピアノロール</h2>
+      <p id="piano-roll-hint">クリック: 配置/削除 ／ ドラッグ: 移動 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符（休符列は直前の音程で入力）</p>
       <div id="piano-roll-scroll">
         <canvas id="piano-roll"></canvas>
       </div>
@@ -74,6 +75,12 @@
   </ul>
   <p>MML表現は保存できません。編集の正本は内部JSON（自動保存＋JSON保存）で、
   pyxresは書き出し専用です。</p>
+  <h3>ピアノロールのキーボード操作</h3>
+  <ul>
+    <li><kbd>←</kbd><kbd>→</kbd>: 選択列を左右に移動</li>
+    <li><kbd>↑</kbd><kbd>↓</kbd>: 選択列のノートを半音ずつ移調</li>
+    <li><kbd>Enter</kbd>: 休符列なら直前に入力した音程で配置、音符列なら休符に変更</li>
+  </ul>
   <div class="dialog-buttons">
     <button id="btn-close-help">閉じる</button>
   </div>
