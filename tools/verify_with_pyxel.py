@@ -15,25 +15,29 @@ def main(pyxres_path: str) -> None:
     pyxel.init(64, 64)
     pyxel.load(pyxres_path)
 
-    # sounds検証（make_test_pyxres.jsの登場順割り当て: p1→0, p2→1, p3→2）
+    # sounds検証（make_test_pyxres.jsの登場順割り当て:
+    #   s1/p1→0, s1/p2→1, s1/p3→2, s2/p1→3）
     s0 = pyxel.sounds[0]
     assert list(s0.notes) == [24, -1, 26, 28], list(s0.notes)
     assert list(s0.tones) == [1], list(s0.tones)
     assert list(s0.volumes) == [6], list(s0.volumes)
-    assert s0.speed == 20, s0.speed
+    assert s0.speed == 20, s0.speed  # bpm90 → speed20（normal）
     s1 = pyxel.sounds[1]
     assert list(s1.notes) == [12, 12, -1, 12], list(s1.notes)
     assert list(s1.effects) == [3], list(s1.effects)
     s2 = pyxel.sounds[2]
     assert list(s2.notes) == [33, 35], list(s2.notes)
-    assert s2.speed == 40, s2.speed
-    assert list(pyxel.sounds[3].notes) == []  # 未使用枠は空エントリ
+    assert s2.speed == 10, s2.speed  # bpm90 → speed20 → double → 10
+    s3 = pyxel.sounds[3]
+    assert list(s3.notes) == [36, 38], list(s3.notes)
+    assert s3.speed == 60, s3.speed  # bpm60 → speed30 → half → 60
+    assert list(pyxel.sounds[4].notes) == []  # 未使用枠は空エントリ
 
-    # musics検証（パターン共有がindex参照として保たれていること）
+    # musics検証（曲内のパターン共有がindex参照として保たれていること）
     m0 = [list(ch) for ch in pyxel.musics[0].seqs]
     m1 = [list(ch) for ch in pyxel.musics[1].seqs]
     assert m0 == [[0, 1, 0], [2]], m0
-    assert m1 == [[1], [0]], m1
+    assert m1 == [[3]], m1
     assert [list(ch) for ch in pyxel.musics[2].seqs] == []  # 空トラック
 
     pyxel.playm(0)  # 再生開始がエラーなく通ること

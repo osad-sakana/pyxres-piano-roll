@@ -46,7 +46,7 @@ const PianoRollView = (() => {
     if (value >= 0) lastNote = value;
     const state = app.getState();
     app.updateProject(
-      (p) => Model.updatePattern(p, state.patternId, {
+      (p) => Model.updatePattern(p, state.songId, state.patternId, {
         notes: app.currentPattern().notes.map((n, i) => (i === col ? value : n)),
       }),
       { selectedCol: col }
@@ -57,7 +57,7 @@ const PianoRollView = (() => {
     if (note >= 0) lastNote = note;
     const state = app.getState();
     app.updateProject(
-      (p) => Model.updatePattern(p, state.patternId, {
+      (p) => Model.updatePattern(p, state.songId, state.patternId, {
         notes: app.currentPattern().notes.map((n, i) => {
           if (i === toCol) return note;
           if (i === fromCol && fromCol !== toCol) return -1;

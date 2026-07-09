@@ -123,6 +123,8 @@ input[type="text"], input[type="number"], select {
   flex-shrink: 0;
 }
 #lane-rows { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
+.bpm-label { margin-left: auto; display: flex; align-items: center; gap: 4px; font-weight: normal; }
+.bpm-label input { width: 56px; }
 .lane-row { display: flex; align-items: center; gap: 4px; min-height: 30px; }
 .lane-label { width: 34px; color: var(--text-dim); flex-shrink: 0; font-size: 11px; }
 .lane-blocks {

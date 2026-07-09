@@ -6,6 +6,7 @@ window.APP_VIEWS = window.APP_VIEWS || [];
 const PropertyPanel = (() => {
   const TONE_LABELS = ["三角波", "矩形波", "パルス波", "ノイズ"];
   const EFFECT_LABELS = ["なし", "スライド", "ビブラート", "フェードアウト", "ハーフ", "クォーター"];
+  const RATE_LABELS = { normal: "通常", double: "2倍", half: "1/2倍" };
 
   let app = null;
   let els = null;
@@ -21,7 +22,9 @@ const PropertyPanel = (() => {
     panel.innerHTML = `
       <label>パターン名 <input type="text" id="prop-name" size="12"></label>
       <label>長さ <input type="number" id="prop-length" min="1" max="999"></label>
-      <label>speed <input type="number" id="prop-speed" min="${Model.SPEED_MIN}" max="${Model.SPEED_MAX}"></label>
+      <label>再生 <select id="prop-rate">${Model.RATE_MODES.map(
+        (m) => `<option value="${m}">${RATE_LABELS[m]}</option>`
+      ).join("")}</select></label>
       <span class="mode-toggle">
         <label><input type="radio" name="prop-mode" value="bulk" checked> 全体一括</label>
         <label><input type="radio" name="prop-mode" value="note"> ノート個別</label>
@@ -34,7 +37,7 @@ const PropertyPanel = (() => {
     els = {
       name: panel.querySelector("#prop-name"),
       length: panel.querySelector("#prop-length"),
-      speed: panel.querySelector("#prop-speed"),
+      rate: panel.querySelector("#prop-rate"),
       tone: panel.querySelector("#prop-tone"),
       volume: panel.querySelector("#prop-volume"),
       effect: panel.querySelector("#prop-effect"),
@@ -49,13 +52,13 @@ const PropertyPanel = (() => {
     const pattern = app.currentPattern();
     if (!pattern) return;
     if (state.propertyMode === "bulk") {
-      app.updateProject((p) => Model.updatePattern(p, pattern.id, { [field]: [value] }));
+      app.updateProject((p) => Model.updatePattern(p, state.songId, pattern.id, { [field]: [value] }));
       return;
     }
     if (state.selectedCol === null) return;
     const expanded = Model.expandProperty(pattern, field);
     const values = expanded[field].map((v, i) => (i === state.selectedCol ? value : v));
-    app.updateProject((p) => Model.updatePattern(p, pattern.id, { [field]: values }));
+    app.updateProject((p) => Model.updatePattern(p, state.songId, pattern.id, { [field]: values }));
   }
 
   function clampInt(input, min, max, fallback) {
@@ -69,25 +72,27 @@ const PropertyPanel = (() => {
     buildPanel(document.getElementById("property-panel"));
 
     els.name.addEventListener("input", () => {
+      const { songId } = app.getState();
       const pattern = app.currentPattern();
       if (pattern) {
-        app.updateProject((p) => Model.updatePattern(p, pattern.id, { name: els.name.value }));
+        app.updateProject((p) => Model.updatePattern(p, songId, pattern.id, { name: els.name.value }));
       }
     });
     els.length.addEventListener("change", () => {
+      const { songId } = app.getState();
       const pattern = app.currentPattern();
       if (!pattern) return;
       const length = clampInt(els.length, 1, 999, pattern.notes.length);
       app.updateProject(
-        (p) => Model.updatePattern(p, pattern.id, Model.resizePattern(pattern, length)),
+        (p) => Model.updatePattern(p, songId, pattern.id, Model.resizePattern(pattern, length)),
         { selectedCol: null }
       );
     });
-    els.speed.addEventListener("change", () => {
+    els.rate.addEventListener("change", () => {
+      const { songId } = app.getState();
       const pattern = app.currentPattern();
       if (!pattern) return;
-      const speed = clampInt(els.speed, Model.SPEED_MIN, Model.SPEED_MAX, pattern.speed);
-      app.updateProject((p) => Model.updatePattern(p, pattern.id, { speed }));
+      app.updateProject((p) => Model.updatePattern(p, songId, pattern.id, { rateMode: els.rate.value }));
     });
     els.tone.addEventListener("change", () => applyProperty("tones", Number(els.tone.value)));
     els.volume.addEventListener("change", () =>
@@ -108,7 +113,7 @@ const PropertyPanel = (() => {
   function render(state) {
     const pattern = app.currentPattern();
     const disabled = !pattern;
-    for (const key of ["name", "length", "speed", "tone", "volume", "effect"]) {
+    for (const key of ["name", "length", "rate", "tone", "volume", "effect"]) {
       els[key].disabled = disabled;
     }
     if (!pattern) {
@@ -118,7 +123,7 @@ const PropertyPanel = (() => {
 
     syncInput(els.name, pattern.name);
     syncInput(els.length, pattern.notes.length);
-    syncInput(els.speed, pattern.speed);
+    syncInput(els.rate, pattern.rateMode);
 
     const noteMode = state.propertyMode === "note";
     const col = state.selectedCol;
@@ -129,11 +134,13 @@ const PropertyPanel = (() => {
 
     const needCol = noteMode && col === null;
     els.tone.disabled = els.volume.disabled = els.effect.disabled = needCol;
+    const song = app.currentSong();
+    const speedInfo = song ? `書き出しspeed ≈ ${Model.patternSpeed(song, pattern)}` : "";
     els.colInfo.textContent = noteMode
       ? col !== null
         ? `編集対象: ${col + 1}列目`
         : "列を選択してください"
-      : "";
+      : speedInfo;
   }
 
   return { init, render };

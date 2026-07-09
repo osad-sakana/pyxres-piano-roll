@@ -13,22 +13,34 @@ if (!outPath) {
 }
 
 let project = Model.createProject();
-project = Model.addPattern(project); // p1
-project = Model.addPattern(project); // p2
-project = Model.addPattern(project); // p3
-project = Model.updatePattern(project, "p1", {
-  notes: [24, -1, 26, 28], tones: [1], volumes: [6], effects: [0], speed: 20,
-});
-project = Model.updatePattern(project, "p2", {
-  notes: [12, 12, -1, 12], tones: [0], volumes: [7], effects: [3], speed: 20,
-});
-project = Model.updatePattern(project, "p3", {
-  notes: [33, 35], tones: [2], volumes: [5], effects: [2], speed: 40,
-});
 project = Model.addSong(project); // s1
 project = Model.addSong(project); // s2
-project = Model.updateSong(project, "s1", { channels: [["p1", "p2", "p1"], ["p3"]] });
-project = Model.updateSong(project, "s2", { channels: [["p2"], ["p1"]] }); // p1/p2を共有
+
+// s1: bpm90（speed20相当）、3パターン（p3は2倍再生）
+project = Model.addPattern(project, "s1"); // s1/p1
+project = Model.addPattern(project, "s1"); // s1/p2
+project = Model.addPattern(project, "s1"); // s1/p3
+project = Model.updatePattern(project, "s1", "p1", {
+  notes: [24, -1, 26, 28], tones: [1], volumes: [6], effects: [0],
+});
+project = Model.updatePattern(project, "s1", "p2", {
+  notes: [12, 12, -1, 12], tones: [0], volumes: [7], effects: [3],
+});
+project = Model.updatePattern(project, "s1", "p3", {
+  notes: [33, 35], tones: [2], volumes: [5], effects: [2], rateMode: "double",
+});
+project = Model.updateSong(project, "s1", {
+  bpm: 90,
+  channels: [["p1", "p2", "p1"], ["p3"]], // p1は曲内共有
+});
+
+// s2: bpm60（speed30相当）、1パターン（1/2倍再生）
+project = Model.addPattern(project, "s2"); // s2/p1
+project = Model.updatePattern(project, "s2", "p1", {
+  notes: [36, 38], tones: [0], volumes: [7], effects: [0], rateMode: "half",
+});
+project = Model.updateSong(project, "s2", { bpm: 60, channels: [["p1"]] });
+
 project = {
   ...project,
   export: { musicSlots: ["s1", "s2", null, null, null, null, null, null] },
@@ -40,4 +52,4 @@ if (!alloc.ok) {
   process.exit(1);
 }
 fs.writeFileSync(outPath, Exporter.buildPyxres(alloc));
-console.log(`生成完了: ${outPath}（2曲・パターン共有あり）`);
+console.log(`生成完了: ${outPath}（2曲・曲内共有・rateModeあり）`);

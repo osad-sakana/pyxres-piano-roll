@@ -35,7 +35,10 @@
 
   <main id="editor">
     <section id="channel-lane">
-      <h2 id="channel-lane-title">曲構造</h2>
+      <h2>
+        <span id="channel-lane-title">曲構造</span>
+        <label class="bpm-label">BPM <input type="number" id="song-bpm" min="20" max="900"></label>
+      </h2>
       <div id="lane-rows"></div>
     </section>
     <section id="piano-roll-section">
@@ -71,7 +74,10 @@
     <li>波形: 4種（三角波・矩形波・パルス波・ノイズ）</li>
     <li>音量: 8段階（0〜7）</li>
     <li>エフェクト: 6種（なし・スライド・ビブラート・フェードアウト・ハーフ・クォーター）</li>
-    <li>書き出し時: ユニークパターン64個以内・曲8個以内・4チャンネル以内</li>
+    <li>パターン: 曲ごとに管理（1曲あたり64個まで）。書き出しは全曲合計64個以内</li>
+    <li>テンポ: 曲ごとのBPM（20〜900）。書き出し時にPyxelのspeedへ近似変換（1列=16分音符）</li>
+    <li>再生モード: パターンごとに通常／2倍／1/2倍を指定可能</li>
+    <li>書き出し時: 曲8個以内・4チャンネル以内</li>
   </ul>
   <p>MML表現は保存できません。編集の正本は内部JSON（自動保存＋JSON保存）で、
   pyxresは書き出し専用です。</p>

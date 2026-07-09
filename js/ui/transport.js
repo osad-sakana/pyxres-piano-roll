@@ -10,10 +10,12 @@ const TransportBar = (() => {
   }
 
   function playPattern() {
+    const song = app.currentSong();
     const pattern = app.currentPattern();
-    if (!pattern) return;
+    if (!song || !pattern) return;
     const loop = el("chk-loop").checked;
-    AudioEngine.play(AudioEngine.renderPattern(pattern), {
+    // bpmとrateModeからspeedを確定させてレンダリング
+    AudioEngine.play(AudioEngine.renderPattern(Model.resolvePattern(song, pattern)), {
       loop,
       onEnded: () => app.setState({ playing: null }),
     });
@@ -23,7 +25,8 @@ const TransportBar = (() => {
   function playSong() {
     const song = app.currentSong();
     if (!song) return;
-    const buf = AudioEngine.renderSong(song, app.getState().project.patterns);
+    const resolved = song.patterns.map((p) => Model.resolvePattern(song, p));
+    const buf = AudioEngine.renderSong(song, resolved);
     if (buf.length === 0) return;
     const loop = el("chk-loop").checked;
     AudioEngine.play(buf, { loop, onEnded: () => app.setState({ playing: null }) });

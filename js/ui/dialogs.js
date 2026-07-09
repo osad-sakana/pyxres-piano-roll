@@ -65,13 +65,17 @@ const DialogsView = (() => {
     const songById = new Map(state.project.songs.map((s) => [s.id, s]));
     for (const id of usedSongIds) {
       const song = songById.get(id);
-      if (song && song.channels.every((ch) => ch.length === 0)) {
+      if (!song) continue;
+      if (song.channels.every((ch) => ch.length === 0)) {
         messages.push({ level: "warn", text: `「${song.name}」は空の曲です（保存は可能）` });
       }
-    }
-    for (const pattern of state.project.patterns) {
-      for (const err of Model.validatePattern(pattern)) {
-        messages.push({ level: "error", text: `${pattern.name}: ${err}` });
+      for (const err of Model.validateSong(song)) {
+        messages.push({ level: "error", text: `${song.name}: ${err}` });
+      }
+      for (const pattern of song.patterns) {
+        for (const err of Model.validatePattern(pattern)) {
+          messages.push({ level: "error", text: `${song.name} / ${pattern.name}: ${err}` });
+        }
       }
     }
     return { result, messages };

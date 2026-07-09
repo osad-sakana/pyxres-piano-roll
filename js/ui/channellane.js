@@ -73,7 +73,9 @@ const ChannelLaneView = (() => {
     block.className = "lane-block";
     block.classList.toggle("selected-pattern", pid === state.patternId);
 
-    const seconds = pattern ? (pattern.notes.length * pattern.speed) / 120 : 0.5;
+    const seconds = pattern
+      ? (pattern.notes.length * Model.patternSpeed(song, pattern)) / 120
+      : 0.5;
     block.style.width = `${Math.max(MIN_BLOCK_W, seconds * PX_PER_SECOND)}px`;
     block.title = pattern ? `${pattern.name}（${seconds.toFixed(1)}秒）` : pid;
 
@@ -107,14 +109,19 @@ const ChannelLaneView = (() => {
     const song = app.currentSong();
     const title = document.getElementById("channel-lane-title");
     const rows = document.getElementById("lane-rows");
+    const bpmInput = document.getElementById("song-bpm");
     rows.textContent = "";
 
+    bpmInput.disabled = !song;
     if (!song) {
       title.textContent = "曲構造（曲未選択）";
       return;
     }
     title.textContent = `曲構造: ${song.name || song.id}`;
-    const patternById = new Map(state.project.patterns.map((p) => [p.id, p]));
+    if (document.activeElement !== bpmInput && String(bpmInput.value) !== String(song.bpm)) {
+      bpmInput.value = song.bpm;
+    }
+    const patternById = new Map(song.patterns.map((p) => [p.id, p]));
 
     song.channels.forEach((ids, ch) => {
       const row = document.createElement("div");
@@ -157,6 +164,15 @@ const ChannelLaneView = (() => {
 
   function init(appRef) {
     app = appRef;
+    document.getElementById("song-bpm").addEventListener("change", (e) => {
+      const song = app.currentSong();
+      if (!song) return;
+      const raw = Number.parseInt(e.target.value, 10);
+      const bpm = Number.isNaN(raw)
+        ? song.bpm
+        : Math.min(Model.BPM_MAX, Math.max(Model.BPM_MIN, raw));
+      app.updateProject((p) => Model.updateSong(p, song.id, { bpm }));
+    });
   }
 
   return { init, render };

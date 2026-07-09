@@ -8,20 +8,27 @@ const App = (() => {
   function bootstrapProject() {
     const saved = Storage.loadFromLocalStorage();
     if (saved) return saved;
-    let project = Model.addSong(Model.addPattern(Model.createProject()));
-    const pid = project.patterns[0].id;
+    let project = Model.addSong(Model.createProject());
     const sid = project.songs[0].id;
+    project = Model.addPattern(project, sid);
+    const pid = project.songs[0].patterns[0].id;
     project = Model.updateSong(project, sid, { channels: [[pid]] });
     const musicSlots = [sid, ...Array(Model.MAX_MUSICS - 1).fill(null)];
     return { ...project, export: { musicSlots } };
   }
 
+  function firstPatternId(project, songId) {
+    const song = project.songs.find((s) => s.id === songId);
+    return song && song.patterns[0] ? song.patterns[0].id : null;
+  }
+
   function init() {
     const project = bootstrapProject();
+    const songId = project.songs[0] ? project.songs[0].id : null;
     state = {
       project,
-      songId: project.songs[0] ? project.songs[0].id : null,
-      patternId: project.patterns[0] ? project.patterns[0].id : null,
+      songId,
+      patternId: firstPatternId(project, songId),
       selectedCol: null,
       propertyMode: "bulk", // "bulk" = 全体一括 / "note" = ノート個別（§4.2）
       playing: null, // null | "pattern" | "song"
@@ -54,10 +61,11 @@ const App = (() => {
 
   // 読み込み等でプロジェクトを丸ごと差し替える
   function replaceProject(project) {
+    const songId = project.songs[0] ? project.songs[0].id : null;
     state = {
       project,
-      songId: project.songs[0] ? project.songs[0].id : null,
-      patternId: project.patterns[0] ? project.patterns[0].id : null,
+      songId,
+      patternId: firstPatternId(project, songId),
       selectedCol: null,
       propertyMode: "bulk",
       playing: null,
@@ -67,7 +75,9 @@ const App = (() => {
   }
 
   function currentPattern() {
-    return state.project.patterns.find((p) => p.id === state.patternId) || null;
+    const song = currentSong();
+    if (!song) return null;
+    return song.patterns.find((p) => p.id === state.patternId) || null;
   }
 
   function currentSong() {
@@ -78,7 +88,16 @@ const App = (() => {
     for (const view of window.APP_VIEWS) view.render(state);
   }
 
-  return { init, getState, setState, updateProject, replaceProject, currentPattern, currentSong };
+  return {
+    init,
+    getState,
+    setState,
+    updateProject,
+    replaceProject,
+    currentPattern,
+    currentSong,
+    firstPatternId,
+  };
 })();
 
 window.addEventListener("DOMContentLoaded", App.init);

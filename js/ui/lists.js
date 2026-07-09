@@ -49,44 +49,56 @@ const ListsView = (() => {
     document.getElementById("btn-add-song").addEventListener("click", () => {
       app.updateProject((p) => Model.addSong(p), {});
       const songs = app.getState().project.songs;
-      app.setState({ songId: songs[songs.length - 1].id });
+      app.setState({ songId: songs[songs.length - 1].id, patternId: null, selectedCol: null });
     });
     document.getElementById("btn-add-pattern").addEventListener("click", () => {
-      app.updateProject((p) => Model.addPattern(p), {});
-      const patterns = app.getState().project.patterns;
-      app.setState({ patternId: patterns[patterns.length - 1].id, selectedCol: null });
+      const { songId } = app.getState();
+      if (!songId) return;
+      try {
+        app.updateProject((p) => Model.addPattern(p, songId), {});
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+      const song = app.currentSong();
+      app.setState({ patternId: song.patterns[song.patterns.length - 1].id, selectedCol: null });
     });
   }
 
   function render(state) {
     renderList(document.getElementById("song-list"), state.project.songs, state.songId, {
-      onSelect: (song) => app.setState({ songId: song.id }),
+      onSelect: (song) =>
+        app.setState({
+          songId: song.id,
+          patternId: app.firstPatternId(state.project, song.id),
+          selectedCol: null,
+        }),
       onRename: (song, name) => app.updateProject((p) => Model.updateSong(p, song.id, { name })),
       onDelete: (song) => {
-        if (!confirm(`曲「${song.name}」を削除しますか？`)) return;
+        if (!confirm(`曲「${song.name}」を削除しますか？曲内のパターンも失われます。`)) return;
         app.updateProject((p) => Model.removeSong(p, song.id), {
           songId: state.songId === song.id ? null : state.songId,
+          patternId: state.songId === song.id ? null : state.patternId,
         });
       },
     });
 
-    renderList(
-      document.getElementById("pattern-list"),
-      state.project.patterns,
-      state.patternId,
-      {
-        draggable: true,
-        onSelect: (pat) => app.setState({ patternId: pat.id, selectedCol: null }),
-        onRename: (pat, name) => app.updateProject((p) => Model.updatePattern(p, pat.id, { name })),
-        onDelete: (pat) => {
-          if (!confirm(`パターン「${pat.name}」を削除しますか？曲内の配置も除去されます。`)) return;
-          app.updateProject((p) => Model.removePattern(p, pat.id), {
-            patternId: state.patternId === pat.id ? null : state.patternId,
-            selectedCol: null,
-          });
-        },
-      }
-    );
+    // パターンは選択中の曲のものだけを表示する（曲 has many パターン）
+    const song = app.currentSong();
+    renderList(document.getElementById("pattern-list"), song ? song.patterns : [], state.patternId, {
+      draggable: true,
+      onSelect: (pat) => app.setState({ patternId: pat.id, selectedCol: null }),
+      onRename: (pat, name) =>
+        app.updateProject((p) => Model.updatePattern(p, state.songId, pat.id, { name })),
+      onDelete: (pat) => {
+        if (!confirm(`パターン「${pat.name}」を削除しますか？曲内の配置も除去されます。`)) return;
+        app.updateProject((p) => Model.removePattern(p, state.songId, pat.id), {
+          patternId: state.patternId === pat.id ? null : state.patternId,
+          selectedCol: null,
+        });
+      },
+    });
+    document.getElementById("btn-add-pattern").disabled = !song;
   }
 
   return { init, render };
