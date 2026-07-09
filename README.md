@@ -1,8 +1,12 @@
-# Pyxel互換 音楽エディタ
+# Pyxel互換音楽エディタ
 
 ブラウザ単体で動く、[Pyxel](https://github.com/kitao/pyxel)互換の音楽エディタです。
 ピアノロールで打ち込んだ曲を `.pyxres`（`format_version = 1`）として書き出し、
 Pyxel実機の `pyxel.load()` + `pyxel.playm()` でそのまま再生できます。
+
+> **非公式ツールです**: 本プロジェクトはファンメイドのサードパーティ製ツールであり、
+> Pyxel開発者の承認を受けたものではありません。Pyxelは[kitao](https://github.com/kitao)氏の
+> 著作物です。本エディタで生成したファイルに起因する不具合をPyxel本体へ報告しないでください。
 
 設計の背景は [260708_Pyxel互換音楽エディタ設計書.md](260708_Pyxel互換音楽エディタ設計書.md) を参照してください
 （データモデルは設計書のv1から変更されています。後述「データモデル」参照）。
@@ -90,3 +94,13 @@ uv run python tools/verify_with_pyxel.py /tmp/verify.pyxres
 
 実機検証はPyxel 2.9.7で、エディタ生成の2曲入りpyxres（曲内パターン共有・再生モードあり）が
 `pyxel.load()`で読み込め、sounds/musicsの内容が一致し、`playm()`が通ることを確認しています。
+
+## ライセンスとクレジット
+
+本プロジェクトは [MIT License](LICENSE) です。
+
+- [Pyxel](https://github.com/kitao/pyxel)（MIT License, © [kitao](https://github.com/kitao)）— 本エディタが互換対象とするレトロゲームエンジン
+- 再生エンジンの各パラメータ（サンプルレート・波形定義・ゲイン・LFSRシード・エフェクト仕様など）は、
+  pyxel-core（MIT License）のソースコード（`settings.rs` / `voice.rs` / `sound.rs` / `channel.rs`）を
+  参照して導出したものです。コードの複製・翻訳は含みません
+- `.pyxres`フォーマットは公式仕様 [pyxres-format.md](https://github.com/kitao/pyxel/blob/main/docs/pyxres-format.md) に準拠しています
