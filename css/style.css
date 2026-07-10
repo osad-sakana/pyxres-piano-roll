@@ -125,6 +125,8 @@ input[type="text"], input[type="number"], select {
 #lane-rows { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
 .bpm-label { margin-left: auto; display: flex; align-items: center; gap: 4px; font-weight: normal; }
 .bpm-label input { width: 56px; }
+.transpose-label { display: flex; align-items: center; gap: 4px; font-weight: normal; }
+.transpose-label input { width: 48px; }
 .lane-row { display: flex; align-items: center; gap: 4px; min-height: 30px; }
 .lane-label { width: 34px; color: var(--text-dim); flex-shrink: 0; font-size: 11px; }
 .lane-blocks {

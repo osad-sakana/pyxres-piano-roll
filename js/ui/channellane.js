@@ -110,9 +110,11 @@ const ChannelLaneView = (() => {
     const title = document.getElementById("channel-lane-title");
     const rows = document.getElementById("lane-rows");
     const bpmInput = document.getElementById("song-bpm");
+    const transposeInput = document.getElementById("song-transpose");
     rows.textContent = "";
 
     bpmInput.disabled = !song;
+    transposeInput.disabled = !song;
     if (!song) {
       title.textContent = "曲構造（曲未選択）";
       return;
@@ -120,6 +122,12 @@ const ChannelLaneView = (() => {
     title.textContent = `曲構造: ${song.name || song.id}`;
     if (document.activeElement !== bpmInput && String(bpmInput.value) !== String(song.bpm)) {
       bpmInput.value = song.bpm;
+    }
+    if (
+      document.activeElement !== transposeInput &&
+      String(transposeInput.value) !== String(song.transpose)
+    ) {
+      transposeInput.value = song.transpose;
     }
     const patternById = new Map(song.patterns.map((p) => [p.id, p]));
 
@@ -172,6 +180,15 @@ const ChannelLaneView = (() => {
         ? song.bpm
         : Math.min(Model.BPM_MAX, Math.max(Model.BPM_MIN, raw));
       app.updateProject((p) => Model.updateSong(p, song.id, { bpm }));
+    });
+    document.getElementById("song-transpose").addEventListener("change", (e) => {
+      const song = app.currentSong();
+      if (!song) return;
+      const raw = Number.parseInt(e.target.value, 10);
+      const transpose = Number.isNaN(raw)
+        ? song.transpose
+        : Math.min(Model.TRANSPOSE_MAX, Math.max(Model.TRANSPOSE_MIN, raw));
+      app.updateProject((p) => Model.updateSong(p, song.id, { transpose }));
     });
   }
 

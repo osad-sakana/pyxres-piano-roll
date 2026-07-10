@@ -38,6 +38,7 @@
       <h2>
         <span id="channel-lane-title">曲構造</span>
         <label class="bpm-label">BPM <input type="number" id="song-bpm" min="20" max="900"></label>
+        <label class="transpose-label">移調 <input type="number" id="song-transpose" min="-59" max="59" title="半音単位。再生・書き出し時に全ノートへ適用"></label>
       </h2>
       <div id="lane-rows"></div>
     </section>
@@ -78,6 +79,7 @@
     <li>テンポ: 曲ごとのBPM（20〜900）。書き出し時にPyxelのspeedへ近似変換（1列=16分音符）</li>
     <li>再生モード: パターンごとに通常／2倍／1/2倍を指定可能</li>
     <li>音価: ノート右端のドラッグで長さを変更。書き出し時は同音程の連続ノートへ分割される</li>
+    <li>移調: 曲ごとに±59半音。再生・書き出し時に全ノートへ適用（非破壊）。音域外は端へクランプ</li>
     <li>書き出し時: 曲8個以内・4チャンネル以内</li>
   </ul>
   <p>MML表現は保存できません。編集の正本は内部JSON（自動保存＋JSON保存）で、

@@ -69,6 +69,13 @@ const DialogsView = (() => {
       if (song.channels.every((ch) => ch.length === 0)) {
         messages.push({ level: "warn", text: `「${song.name}」は空の曲です（保存は可能）` });
       }
+      const clamped = Model.transposeClampCount(song);
+      if (clamped > 0) {
+        messages.push({
+          level: "warn",
+          text: `「${song.name}」: 移調${song.transpose > 0 ? "+" : ""}${song.transpose}で${clamped}個のノートが音域外となり端へクランプされます`,
+        });
+      }
       for (const err of Model.validateSong(song)) {
         messages.push({ level: "error", text: `${song.name}: ${err}` });
       }

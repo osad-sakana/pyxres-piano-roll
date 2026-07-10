@@ -55,7 +55,10 @@ const PianoRollView = (() => {
   function previewNote(pattern, col, note) {
     const tone = pattern.tones[col % pattern.tones.length];
     const volume = pattern.volumes[col % pattern.volumes.length];
-    AudioEngine.play(AudioEngine.renderPreviewNote(note, tone, volume));
+    // 曲の移調を適用した実際の再生ピッチで鳴らす
+    const song = app.currentSong();
+    const pitch = Model.transposeNote(note, song ? song.transpose || 0 : 0);
+    AudioEngine.play(AudioEngine.renderPreviewNote(pitch, tone, volume));
   }
 
   // パターン全体を差し替える形で更新する（Modelの音価ヘルパを使うため）
