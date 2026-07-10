@@ -31,7 +31,7 @@ project = Model.updatePattern(project, "s1", "p3", {
 });
 project = Model.updateSong(project, "s1", {
   bpm: 90,
-  channels: [["p1", "p2", "p1"], ["p3"]], // p1は曲内共有
+  channels: [["p1", "p2", "p1"], [null, "p3"]], // p1は曲内共有。ch1は1小節の空白から開始
 });
 
 // s2: bpm60（speed30相当）、1パターン（1/2倍再生）、移調+12
