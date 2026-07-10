@@ -18,7 +18,8 @@ def main(pyxres_path: str) -> None:
     # sounds検証（make_test_pyxres.jsの登場順割り当て:
     #   s1/p1→0, s1/p2→1, s1/p3→2, s2/p1→3）
     s0 = pyxel.sounds[0]
-    assert list(s0.notes) == [24, -1, 26, 28], list(s0.notes)
+    # 音価len2のノートは同音程の連続ノートへ分割されている
+    assert list(s0.notes) == [24, 24, 26, 28], list(s0.notes)
     assert list(s0.tones) == [1], list(s0.tones)
     assert list(s0.volumes) == [6], list(s0.volumes)
     assert s0.speed == 20, s0.speed  # bpm90 → speed20（normal）

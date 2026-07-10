@@ -21,8 +21,8 @@ project = Model.addPattern(project, "s1"); // s1/p1
 project = Model.addPattern(project, "s1"); // s1/p2
 project = Model.addPattern(project, "s1"); // s1/p3
 project = Model.updatePattern(project, "s1", "p1", {
-  notes: [24, -1, 26, 28], tones: [1], volumes: [6], effects: [0],
-});
+  notes: [24, -1, 26, 28], lengths: [2, 1, 1, 1], tones: [1], volumes: [6], effects: [0],
+}); // 24はlen2 → 書き出しで [24, 24, 26, 28] に分割される
 project = Model.updatePattern(project, "s1", "p2", {
   notes: [12, 12, -1, 12], tones: [0], volumes: [7], effects: [3],
 });
