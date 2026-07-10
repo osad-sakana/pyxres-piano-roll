@@ -6,9 +6,11 @@
 // v3: 音価（lengths）を追加。ノートは複数列を占有でき、
 //     書き出し・再生時に同音程の連続ノートへ分割展開される。
 // v4: 曲にtranspose（半音）を追加。再生・書き出し時に全ノートへ非破壊で適用される。
+// v5: チャンネルをグリッド化。セルはpatternId | null（空白=1小節の休符）で、
+//     トラックの途中からパターンを配置できる。書き出し時は空白を休符サウンドへ変換。
 // DOM・Web Audioに依存しない純粋データ層。全操作はイミュータブル。
 const Model = (() => {
-  const FORMAT_VERSION = 4;
+  const FORMAT_VERSION = 5;
   const NOTE_MIN = -1;
   const NOTE_MAX = 59;
   const MAX_CHANNELS = 4;
@@ -28,6 +30,8 @@ const Model = (() => {
   const DEFAULT_SOUND_SPEED = 30; // 未使用音枠の既定speed（pyxel-core DEFAULT_SOUND_SPEED）
   const DEFAULT_PATTERN_LENGTH = 16;
   const RATE_MODES = ["normal", "double", "half"];
+  const REST_CELL_COLUMNS = 16; // 空白セル1個の長さ（16列=1小節ぶんの休符）
+  const REST_KEY = "__rest__"; // 書き出し割り当てで休符サウンドを指すキー
 
   function createProject() {
     const now = new Date().toISOString();
@@ -118,7 +122,10 @@ const Model = (() => {
     const song = findSong(project, songId);
     return updateSong(project, songId, {
       patterns: song.patterns.filter((p) => p.id !== patternId),
-      channels: song.channels.map((ch) => ch.filter((id) => id !== patternId)),
+      // 配置は空白セルへ置き換え、後続セルの位置（タイミング）を保つ
+      channels: song.channels.map((ch) =>
+        trimCells(ch.map((id) => (id === patternId ? null : id)))
+      ),
     });
   }
 
@@ -260,6 +267,44 @@ const Model = (() => {
     return { ...song, channels: song.channels.filter((_, i) => i !== index) };
   }
 
+  // ---- チャンネルグリッド操作 ----
+  // セルは patternId | null。nullは1小節（REST_CELL_COLUMNS列）の休符。
+  // 末尾のnullは意味を持たないため常に切り詰める。
+  function trimCells(cells) {
+    const out = [...cells];
+    while (out.length > 0 && out[out.length - 1] === null) out.pop();
+    return out;
+  }
+
+  function withChannel(song, ch, cells) {
+    return {
+      ...song,
+      channels: song.channels.map((c, i) => (i === ch ? trimCells(cells) : c)),
+    };
+  }
+
+  // idxのセルへ配置/空白化する。既存長を超える位置はnullで埋める
+  function setChannelCell(song, ch, idx, value) {
+    const cells = [...song.channels[ch]];
+    while (cells.length <= idx) cells.push(null);
+    cells[idx] = value;
+    return withChannel(song, ch, cells);
+  }
+
+  // idxの位置へ挿入する（以降のセルは後ろへずれる）
+  function insertChannelCell(song, ch, idx, value) {
+    const cells = [...song.channels[ch]];
+    while (cells.length < idx) cells.push(null);
+    cells.splice(idx, 0, value);
+    return withChannel(song, ch, cells);
+  }
+
+  // idxのセルを取り除く（以降のセルは前へ詰まる）
+  function removeChannelCell(song, ch, idx) {
+    const cells = song.channels[ch].filter((_, i) => i !== idx);
+    return withChannel(song, ch, cells);
+  }
+
   // ---- テンポ変換 ----
   // 1列 = 16分音符とみなす。tick = 1/120秒なので
   // 16分音符のtick数 = (60 / bpm / 4) × 120 = 1800 / bpm（丸めによる近似）
@@ -307,6 +352,30 @@ const Model = (() => {
       notes: transposeNotes(expanded.notes, song.transpose || 0),
       speed: patternSpeed(song, pattern),
     };
+  }
+
+  // 空白セル1個ぶんの休符（再生・書き出し共用の形。speedは曲のbpm基準）
+  function restCell(song) {
+    return {
+      id: null,
+      name: "",
+      notes: Array(REST_CELL_COLUMNS).fill(-1),
+      tones: [0],
+      volumes: [7],
+      effects: [0],
+      speed: bpmToSpeed(song.bpm),
+    };
+  }
+
+  // 曲の全チャンネルを再生可能なパターン列へ解決する（空白・欠損参照は休符になる）
+  function resolveChannels(song) {
+    const byId = new Map(song.patterns.map((p) => [p.id, p]));
+    return song.channels.map((cells) =>
+      cells.map((cell) => {
+        const pattern = cell !== null ? byId.get(cell) : null;
+        return pattern ? resolvePattern(song, pattern) : restCell(song);
+      })
+    );
   }
 
   function validatePattern(pattern) {
@@ -375,8 +444,14 @@ const Model = (() => {
     const songById = new Map(project.songs.map((s) => [s.id, s]));
     const slots = project.export.musicSlots;
 
-    // 1. 選択された曲が参照するパターンを登場順に収集・重複排除（曲内共有のみ）
-    const ordered = []; // { key, song, pattern }
+    // セル→割り当てキー。空白セル・欠損参照は曲ごとの休符サウンドを指す
+    const cellKey = (song, cell, patternById) =>
+      cell !== null && patternById.has(cell)
+        ? `${song.id}/${cell}`
+        : `${song.id}/${REST_KEY}`;
+
+    // 1. 選択された曲が参照するパターン（＋休符）を登場順に収集・重複排除
+    const ordered = []; // { key, song, pattern }  pattern=nullは休符サウンド
     const seen = new Set();
     const perSong = [];
     for (const songId of slots) {
@@ -386,14 +461,12 @@ const Model = (() => {
       const patternById = new Map(song.patterns.map((p) => [p.id, p]));
       const songKeys = new Set();
       for (const channel of song.channels) {
-        for (const pid of channel) {
-          const pattern = patternById.get(pid);
-          if (!pattern) continue;
-          const key = `${songId}/${pid}`;
+        for (const cell of channel) {
+          const key = cellKey(song, cell, patternById);
           songKeys.add(key);
           if (!seen.has(key)) {
             seen.add(key);
-            ordered.push({ key, song, pattern });
+            ordered.push({ key, song, pattern: patternById.get(cell) || null });
           }
         }
       }
@@ -407,18 +480,28 @@ const Model = (() => {
 
     // 3. 登場順にsounds[0..n]へ割り当て、対応表を作る
     const indexByKey = new Map(ordered.map((entry, i) => [entry.key, i]));
-    const sounds = ordered.map(({ song, pattern }) => patternToSound(song, pattern));
+    const sounds = ordered.map(({ song, pattern }) => {
+      if (pattern) return patternToSound(song, pattern);
+      const rest = restCell(song); // 空白セルは全休符サウンドとして書き出す
+      return {
+        notes: rest.notes,
+        tones: rest.tones,
+        volumes: rest.volumes,
+        effects: rest.effects,
+        speed: rest.speed,
+      };
+    });
     // 未使用スロットは空エントリで埋め、通常セーブと同じ64エントリ構成に揃える
     while (sounds.length < MAX_SOUNDS) sounds.push(emptySound());
 
-    // 4. 各曲のchannelsをindex列に変換しmusics[slot].seqsとする
+    // 4. 各曲のchannelsをindex列に変換しmusics[slot].seqsとする（グリッド位置を保持）
     const musics = slots.map((songId) => {
       const song = songId !== null ? songById.get(songId) : null;
       if (!song) return { seqs: [] };
-      const patternIds = new Set(song.patterns.map((p) => p.id));
+      const patternById = new Map(song.patterns.map((p) => [p.id, p]));
       return {
         seqs: song.channels.map((ch) =>
-          ch.filter((pid) => patternIds.has(pid)).map((pid) => indexByKey.get(`${songId}/${pid}`))
+          ch.map((cell) => indexByKey.get(cellKey(song, cell, patternById)))
         ),
       };
     });
@@ -433,10 +516,16 @@ const Model = (() => {
     if (project.formatVersion === 1) project = migrateV1toV2(project);
     if (project.formatVersion === 2) project = migrateV2toV3(project);
     if (project.formatVersion === 3) project = migrateV3toV4(project);
+    if (project.formatVersion === 4) project = migrateV4toV5(project);
     if (project.formatVersion !== FORMAT_VERSION) {
       throw new Error(`未対応のformatVersionです: ${data.formatVersion}`);
     }
     return project;
+  }
+
+  // v4 → v5: チャンネルのグリッド化（形は互換。空白セルnullを許容するようになっただけ）
+  function migrateV4toV5(data) {
+    return { ...data, formatVersion: 5 };
   }
 
   // v3 → v4: 各曲へtranspose（0）を付与
@@ -563,6 +652,12 @@ const Model = (() => {
     expandProperty,
     addChannel,
     removeChannel,
+    setChannelCell,
+    insertChannelCell,
+    removeChannelCell,
+    restCell,
+    resolveChannels,
+    REST_CELL_COLUMNS,
     bpmToSpeed,
     patternSpeed,
     transposeNote,

@@ -41,8 +41,8 @@ const TransportBar = (() => {
   function playSong() {
     const song = app.currentSong();
     if (!song) return;
-    const resolved = song.patterns.map((p) => Model.resolvePattern(song, p));
-    const buf = AudioEngine.renderSong(song, resolved);
+    // 空白セルを含むグリッドを再生可能パターン列へ解決してレンダリング
+    const buf = AudioEngine.renderSong(Model.resolveChannels(song));
     if (buf.length === 0) return;
     const loop = el("chk-loop").checked;
     AudioEngine.play(buf, { loop, onEnded: () => app.setState({ playing: null }) });

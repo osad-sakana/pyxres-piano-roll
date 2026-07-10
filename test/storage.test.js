@@ -37,7 +37,7 @@ test("parseProject: v1のJSONは最新フォーマットへ自動マイグレー
     export: { musicSlots: ["s1", null, null, null, null, null, null, null] },
   });
   const project = Storage.parseProject(v1);
-  assert.equal(project.formatVersion, 4);
+  assert.equal(project.formatVersion, 5);
   assert.equal(project.songs[0].bpm, 90); // speed20 → bpm90
   assert.equal(project.songs[0].patterns[0].rateMode, "normal");
   assert.deepEqual(project.songs[0].patterns[0].lengths, [1]);

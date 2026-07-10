@@ -141,13 +141,13 @@ const AudioEngine = (() => {
     return renderChannel([pat]);
   }
 
-  // 曲全体をレンダリング。チャンネルごとにレンダリングし合算（最長チャンネルに揃える）
-  function renderSong(song, patterns) {
-    const byId = new Map(patterns.map((p) => [p.id, p]));
-    const channelBuffers = song.channels
-      .map((ids) => ids.map((id) => byId.get(id)).filter(Boolean))
-      .filter((pats) => pats.length > 0)
-      .map((pats) => renderChannel(pats));
+  // 曲全体をレンダリング。channelsは再生可能パターン列の配列
+  // （Model.resolveChannels の結果。空白セルは休符パターンとして含まれる）。
+  // チャンネルごとにレンダリングし合算（最長チャンネルに揃える）
+  function renderSong(channels) {
+    const channelBuffers = channels
+      .filter((patterns) => patterns.length > 0)
+      .map((patterns) => renderChannel(patterns));
     const total = channelBuffers.reduce((m, b) => Math.max(m, b.length), 0);
     const out = new Float32Array(total);
     for (const buf of channelBuffers) {

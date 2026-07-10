@@ -60,9 +60,19 @@ test("renderPattern: Half(4)は前半保持・後半フェード", () => {
 test("renderSong: チャンネル合算で最長チャンネルの長さになる", () => {
   const p1 = pattern({ id: "p1", notes: [24, 26] });
   const p2 = pattern({ id: "p2", notes: [12] });
-  const song = { id: "s1", name: "", channels: [["p1"], ["p2"]] };
-  const buf = AudioEngine.renderSong(song, [p1, p2]);
+  const buf = AudioEngine.renderSong([[p1], [p2]]);
   assert.equal(buf.length, Math.round(2 * 30 * SPT));
+});
+
+test("renderSong: 休符パターンを挟むとその区間は無音になる", () => {
+  const rest = pattern({ id: null, notes: Array(4).fill(-1) });
+  const p1 = pattern({ id: "p1", notes: [24] });
+  const buf = AudioEngine.renderSong([[rest, p1]]);
+  assert.equal(buf.length, Math.round(5 * 30 * SPT));
+  const restPart = buf.subarray(0, Math.round(4 * 30 * SPT));
+  assert.ok(restPart.every((v) => v === 0));
+  const notePart = buf.subarray(Math.round(4 * 30 * SPT));
+  assert.ok(notePart.some((v) => v !== 0));
 });
 
 test("lfsrStep: NES APU長周期LFSR（tap bit1）の基本動作", () => {
