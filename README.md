@@ -48,6 +48,41 @@ uv run pyxel-test <pyxresファイル>
 | `SPACE`     | 再生 / 停止                  |
 | `Q` / `ESC` | 終了                         |
 
+## Pyxelアプリへの組み込み方
+
+書き出した `.pyxres` はそのまま `pyxel.load()` で読み込めます。画像・タイルマップは
+空（`images = []` / `tilemaps = []`）なので、Pyxel Editorなどで作った画像用の
+`.pyxres` と分けて管理し、`exclude_*` 引数で合成するのが基本形です。
+
+```python
+import pyxel
+
+pyxel.init(160, 120)
+
+# 画像・タイルマップは別ファイルから読み込む（音楽データには触れない）
+pyxel.load("graphics.pyxres", exclude_sounds=True, exclude_musics=True)
+
+# 音楽データはこのエディタが書き出したファイルから読み込む（画像は空なので触れない）
+pyxel.load("music.pyxres", exclude_images=True, exclude_tilemaps=True)
+
+def update():
+    if pyxel.btnp(pyxel.KEY_SPACE):
+        pyxel.playm(0, loop=True)  # 書き出しダイアログでスロット0に割り当てた曲を再生
+
+def draw():
+    pyxel.cls(0)
+
+pyxel.run(update, draw)
+```
+
+- `pyxel.load()` は除外した種別のリソースには触れないため、2回呼んでも先に読み込んだ
+  内容を上書きしません（Pyxel 2.9.7で動作確認済み。詳細は`tools/verify_with_pyxel.py`）。
+- どの曲がどのスロット（0〜7）に入っているかは、書き出しダイアログでのスロット割り当てで決まります。
+- 曲の切り替えやループは `pyxel.playm(slot, loop=True)` を呼び直すだけです。
+- 1ファイルに画像と音楽を両方持たせたい場合は、`pyxel.save()` の`exclude_*`は使わず
+  そのまま統合済みファイルとして保存し直しても構いません（Pyxelの`.pyxres`は元々
+  4セクションを1ファイルに持つ形式です）。
+
 ## データモデル
 
 内部フォーマットv5。曲（Song）がパターンを内包します。

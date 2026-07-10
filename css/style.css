@@ -308,6 +308,24 @@ dialog kbd {
   padding: 0 4px;
   font-size: 11px;
 }
+dialog code {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 11px;
+}
+.help-code {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.help-code code { background: none; border: none; padding: 0; }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .export-slot { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 .export-slot select { flex: 1; }

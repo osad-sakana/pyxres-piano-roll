@@ -92,6 +92,15 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
   </ul>
   <p>MML表現は保存できません。編集の正本は内部JSON（自動保存＋JSON保存）で、
   pyxresは書き出し専用です。</p>
+  <h3>Pyxelアプリへの組み込み方</h3>
+  <p>書き出したファイルは画像・タイルマップが空なので、Pyxel Editor等で作った画像用の
+  <code>.pyxres</code>と分けて管理し、<code>exclude_*</code>引数で合成します:</p>
+  <pre class="help-code"><code>pyxel.load("graphics.pyxres", exclude_sounds=True, exclude_musics=True)
+pyxel.load("music.pyxres", exclude_images=True, exclude_tilemaps=True)
+pyxel.playm(0, loop=True)  # 書き出しダイアログで割り当てたスロット番号</code></pre>
+  <p><code>pyxel.load()</code>は除外した種別に触れないため、2回呼んでも先に読み込んだ
+  内容を上書きしません。詳しい手順は
+  <a href="https://github.com/osad-sakana/pyxres-piano-roll#pyxelアプリへの組み込み方" target="_blank" rel="noopener">README</a>を参照してください。</p>
   <h3>ピアノロールのキーボード操作</h3>
   <ul>
     <li><kbd>←</kbd><kbd>→</kbd>: 選択列を左右に移動</li>
