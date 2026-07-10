@@ -17,6 +17,18 @@ const ListsView = (() => {
       name.title = "ダブルクリックで名前変更";
       li.appendChild(name);
 
+      if (handlers.onDuplicate) {
+        const dup = document.createElement("button");
+        dup.className = "del-btn";
+        dup.textContent = "⧉";
+        dup.title = "複製";
+        dup.addEventListener("click", (e) => {
+          e.stopPropagation();
+          handlers.onDuplicate(item);
+        });
+        li.appendChild(dup);
+      }
+
       const del = document.createElement("button");
       del.className = "del-btn";
       del.textContent = "✕";
@@ -88,6 +100,17 @@ const ListsView = (() => {
     renderList(document.getElementById("pattern-list"), song ? song.patterns : [], state.patternId, {
       draggable: true,
       onSelect: (pat) => app.setState({ patternId: pat.id, selectedCol: null }),
+      onDuplicate: (pat) => {
+        const newId = Model.nextId(song.patterns, "p");
+        try {
+          app.updateProject((p) => Model.duplicatePattern(p, state.songId, pat.id), {
+            patternId: newId,
+            selectedCol: null,
+          });
+        } catch (error) {
+          alert(error.message);
+        }
+      },
       onRename: (pat, name) =>
         app.updateProject((p) => Model.updatePattern(p, state.songId, pat.id, { name })),
       onDelete: (pat) => {

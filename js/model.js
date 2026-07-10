@@ -111,6 +111,31 @@ const Model = (() => {
     });
   }
 
+  // パターンを複製し、元のすぐ後ろへ挿入する
+  function duplicatePattern(project, songId, patternId) {
+    const song = findSong(project, songId);
+    if (song.patterns.length >= MAX_PATTERNS_PER_SONG) {
+      throw new Error(`パターンは1曲あたり最大${MAX_PATTERNS_PER_SONG}個です`);
+    }
+    const index = song.patterns.findIndex((p) => p.id === patternId);
+    if (index < 0) {
+      throw new Error(`パターンが見つかりません: ${patternId}`);
+    }
+    const src = song.patterns[index];
+    const copy = {
+      ...src,
+      id: nextId(song.patterns, "p"),
+      name: `${src.name || src.id}のコピー`,
+      notes: [...src.notes],
+      lengths: [...src.lengths],
+      tones: [...src.tones],
+      volumes: [...src.volumes],
+      effects: [...src.effects],
+    };
+    const patterns = [...song.patterns.slice(0, index + 1), copy, ...song.patterns.slice(index + 1)];
+    return updateSong(project, songId, { patterns });
+  }
+
   function updatePattern(project, songId, patternId, patch) {
     const song = findSong(project, songId);
     return updateSong(project, songId, {
@@ -638,6 +663,7 @@ const Model = (() => {
     updateSong,
     removeSong,
     addPattern,
+    duplicatePattern,
     updatePattern,
     removePattern,
     setNoteAt,

@@ -49,6 +49,34 @@ test("addPattern: 1曲64個の構造的上限（Pyxel 64音枠対応）", () => 
   assert.throws(() => Model.addPattern(p, "s1"), /64/);
 });
 
+test("duplicatePattern: 内容を深いコピーで複製し元の直後へ挿入する", () => {
+  let p = baseProject();
+  p = Model.addPattern(p, "s1"); // p2（末尾）
+  p = Model.updatePattern(p, "s1", "p1", {
+    name: "ベース",
+    notes: [24, ...Array(15).fill(-1)],
+    rateMode: "double",
+  });
+  p = Model.duplicatePattern(p, "s1", "p1");
+
+  const patterns = p.songs[0].patterns;
+  assert.deepEqual(patterns.map((x) => x.id), ["p1", "p3", "p2"]); // 直後に挿入・ID衝突なし
+  const copy = patterns[1];
+  assert.equal(copy.name, "ベースのコピー");
+  assert.equal(copy.rateMode, "double");
+  assert.deepEqual(copy.notes, patterns[0].notes);
+  assert.notEqual(copy.notes, patterns[0].notes); // 配列は共有しない
+});
+
+test("duplicatePattern: 64個上限と存在しないIDを拒否する", () => {
+  let p = baseProject();
+  assert.throws(() => Model.duplicatePattern(p, "s1", "p999"), /見つかりません/);
+  for (let i = 0; i < Model.MAX_PATTERNS_PER_SONG - 1; i++) {
+    p = Model.addPattern(p, "s1");
+  }
+  assert.throws(() => Model.duplicatePattern(p, "s1", "p1"), /64/);
+});
+
 test("updatePattern/removePattern: 曲内のパターンを対象にする", () => {
   let p = baseProject();
   p = Model.updatePattern(p, "s1", "p1", { name: "ベース" });
