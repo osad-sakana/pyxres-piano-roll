@@ -20,19 +20,19 @@
   --block-selected-bg: #ffe3b3;
   --block-selected-border: #d97e00;
 
-  /* ピアノロール（Domino風: テーマによらず暗いキャンバス） */
-  --roll-bg: #191919;
-  --roll-row-alt: #242424;
-  --roll-grid: #2e3a2e;
-  --roll-grid-strong: #4c6a4c;
-  --roll-c-line: #565656;
-  --roll-selected-col: rgba(90, 160, 255, 0.16);
+  /* ピアノロール（ライト: 明るいキャンバスに淡い緑のグリッド） */
+  --roll-bg: #fdfdfa;
+  --roll-row-alt: #ebeae4;
+  --roll-grid: #d2e0d2;
+  --roll-grid-strong: #94b894;
+  --roll-c-line: #b4b1a9;
+  --roll-selected-col: rgba(47, 95, 168, 0.14);
   --roll-note: #ff9224;
   --roll-note-border: #8f4a00;
-  --roll-key-white: #f4f2ec;
+  --roll-key-white: #ffffff;
   --roll-key-black: #17140f;
-  --roll-key-border: #8d8a82;
-  --roll-label: #5a564d;
+  --roll-key-border: #9a978f;
+  --roll-label: #6b675e;
 }
 
 [data-theme="dark"] {
