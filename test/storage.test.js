@@ -28,7 +28,7 @@ test("parseProject: 未対応formatVersionは拒否", () => {
   assert.throws(() => Storage.parseProject(bad), /formatVersion/);
 });
 
-test("parseProject: v1のJSONはv2へ自動マイグレーションされる", () => {
+test("parseProject: v1のJSONは最新フォーマットへ自動マイグレーションされる", () => {
   const v1 = JSON.stringify({
     formatVersion: 1,
     meta: { title: "旧", created: "", modified: "" },
@@ -37,9 +37,10 @@ test("parseProject: v1のJSONはv2へ自動マイグレーションされる", (
     export: { musicSlots: ["s1", null, null, null, null, null, null, null] },
   });
   const project = Storage.parseProject(v1);
-  assert.equal(project.formatVersion, 2);
+  assert.equal(project.formatVersion, 3);
   assert.equal(project.songs[0].bpm, 90); // speed20 → bpm90
   assert.equal(project.songs[0].patterns[0].rateMode, "normal");
+  assert.deepEqual(project.songs[0].patterns[0].lengths, [1]);
 });
 
 test("parseProject: 必須フィールド欠落は拒否", () => {

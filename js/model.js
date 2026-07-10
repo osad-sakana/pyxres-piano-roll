@@ -1,11 +1,13 @@
 "use strict";
-// Model層: プロジェクトデータ・バリデーション（設計書§3 / 内部フォーマットv2）
+// Model層: プロジェクトデータ・バリデーション（設計書§3 / 内部フォーマットv3）
 // v2: 曲(Song)がパターンを内包する（曲 has many パターン）。
 //     テンポは曲のbpmで持ち、書き出し時にPyxelのspeedへ変換する。
 //     パターンはrateMode（通常/2倍/1/2倍再生）を持つ。
+// v3: 音価（lengths）を追加。ノートは複数列を占有でき、
+//     書き出し・再生時に同音程の連続ノートへ分割展開される。
 // DOM・Web Audioに依存しない純粋データ層。全操作はイミュータブル。
 const Model = (() => {
-  const FORMAT_VERSION = 2;
+  const FORMAT_VERSION = 3;
   const NOTE_MIN = -1;
   const NOTE_MAX = 59;
   const MAX_CHANNELS = 4;
@@ -39,6 +41,7 @@ const Model = (() => {
       id,
       name,
       notes: Array(DEFAULT_PATTERN_LENGTH).fill(-1),
+      lengths: Array(DEFAULT_PATTERN_LENGTH).fill(1), // 音価（占有する列数）。notes[col] >= 0 の位置のみ有効
       tones: [0],
       volumes: [7],
       effects: [0],
@@ -127,12 +130,113 @@ const Model = (() => {
     return { ...pattern, notes };
   }
 
+  // ---- 音価（ノート長）----
+  // colを占有しているノートの範囲を返す（開始列とcol自身が休符でも、手前のノートが覆っていれば返す）
+  function noteSpanAt(pattern, col) {
+    if (col < 0 || col >= pattern.notes.length) return null;
+    let start = col;
+    while (start >= 0 && pattern.notes[start] < 0) start--;
+    if (start < 0) return null;
+    const len = pattern.lengths[start] || 1;
+    if (start + len <= col) return null; // 手前のノートはcolまで届いていない
+    return { start, len, note: pattern.notes[start] };
+  }
+
+  // fromColより後で最初にノートが始まる列（なければパターン末尾）
+  function nextNoteStart(pattern, fromCol) {
+    for (let c = fromCol + 1; c < pattern.notes.length; c++) {
+      if (pattern.notes[c] >= 0) return c;
+    }
+    return pattern.notes.length;
+  }
+
+  function clampLen(pattern, col, len) {
+    return Math.max(1, Math.min(len, nextNoteStart(pattern, col) - col));
+  }
+
+  // ノートを配置する。覆っている既存ノートは切り詰め、colに既存ノートがあれば音価を保って音程だけ差し替える
+  function placeNote(pattern, col, value, len = null) {
+    if (!Number.isInteger(value) || value < 0 || value > NOTE_MAX) {
+      throw new Error(`note値が範囲外です: ${value}（0〜${NOTE_MAX}）`);
+    }
+    if (col < 0 || col >= pattern.notes.length) {
+      throw new Error(`列が範囲外です: ${col}`);
+    }
+    const notes = [...pattern.notes];
+    const lengths = [...pattern.lengths];
+    const span = noteSpanAt(pattern, col);
+    if (span && span.start < col) {
+      lengths[span.start] = col - span.start; // 覆っていたノートを切り詰める
+    }
+    const keepLen = span && span.start === col ? span.len : 1;
+    notes[col] = value;
+    const p = { ...pattern, notes, lengths };
+    lengths[col] = clampLen(p, col, len !== null ? len : keepLen);
+    return { ...pattern, notes, lengths };
+  }
+
+  // colを占有しているノートを削除する
+  function deleteNoteAt(pattern, col) {
+    const span = noteSpanAt(pattern, col);
+    if (!span) return pattern;
+    const notes = pattern.notes.map((n, i) => (i === span.start ? -1 : n));
+    const lengths = pattern.lengths.map((l, i) => (i === span.start ? 1 : l));
+    return { ...pattern, notes, lengths };
+  }
+
+  // startにあるノートの音価を変更する（1以上・次のノート/パターン末尾まで）
+  function resizeNoteAt(pattern, start, len) {
+    if (pattern.notes[start] < 0) return pattern;
+    const lengths = pattern.lengths.map((l, i) =>
+      i === start ? clampLen(pattern, start, len) : l
+    );
+    return { ...pattern, lengths };
+  }
+
+  // ノートを音価を保ったまま移動する（移動先で収まらない分は切り詰め）
+  function moveNoteTo(pattern, fromCol, toCol, value) {
+    const span = noteSpanAt(pattern, fromCol);
+    const len = span ? span.len : 1;
+    const removed = span ? deleteNoteAt(pattern, fromCol) : pattern;
+    return placeNote(removed, toCol, value, len);
+  }
+
+  // 音価を列単位の連続ノートへ分割展開する（書き出し・再生用）。
+  // pyxresに音価の概念はないため、長さNのノートは同音程N列になる。
+  function expandPattern(pattern) {
+    if (!pattern.lengths || pattern.lengths.every((l) => (l || 1) <= 1)) return pattern;
+    const cols = pattern.notes.length;
+    const notes = [...pattern.notes];
+    const expandField = (arr) =>
+      arr.length === cols ? [...arr] : arr; // ノート個別編集済みの配列のみ列単位で持つ
+    const tones = expandField(pattern.tones);
+    const volumes = expandField(pattern.volumes);
+    const effects = expandField(pattern.effects);
+    for (let start = 0; start < cols; start++) {
+      if (pattern.notes[start] < 0) continue;
+      const len = Math.min(pattern.lengths[start] || 1, cols - start);
+      for (let c = start + 1; c < start + len; c++) {
+        notes[c] = pattern.notes[start];
+        // 個別編集された属性は開始列の値を引き継ぐ（循環配列のままなら全列同値なので不要）
+        if (tones.length === cols) tones[c] = tones[start];
+        if (volumes.length === cols) volumes[c] = volumes[start];
+        if (effects.length === cols) effects[c] = effects[start];
+      }
+    }
+    return { ...pattern, notes, tones, volumes, effects };
+  }
+
   function resizePattern(pattern, length) {
     if (!Number.isInteger(length) || length < 1) {
       throw new Error(`パターン長が不正です: ${length}`);
     }
     const notes = Array.from({ length }, (_, i) => (i < pattern.notes.length ? pattern.notes[i] : -1));
-    return { ...pattern, notes };
+    // 音価も追従させ、新しい末尾からはみ出すノートは切り詰める
+    const lengths = Array.from({ length }, (_, i) => {
+      const l = i < pattern.lengths.length ? pattern.lengths[i] : 1;
+      return notes[i] >= 0 ? Math.min(l, length - i) : 1;
+    });
+    return { ...pattern, notes, lengths };
   }
 
   // ノート個別編集モード用: 循環配列をnotesと同長に展開する（§4.2）
@@ -167,9 +271,9 @@ const Model = (() => {
     return base;
   }
 
-  // 再生・書き出し用にspeedを確定させたパターンを得る
+  // 再生・書き出し用に、音価を分割展開しspeedを確定させたパターンを得る
   function resolvePattern(song, pattern) {
-    return { ...pattern, speed: patternSpeed(song, pattern) };
+    return { ...expandPattern(pattern), speed: patternSpeed(song, pattern) };
   }
 
   function validatePattern(pattern) {
@@ -188,6 +292,13 @@ const Model = (() => {
     }
     if (!RATE_MODES.includes(pattern.rateMode)) {
       errors.push(`再生モードが不正です: ${pattern.rateMode}`);
+    }
+    if (
+      !Array.isArray(pattern.lengths) ||
+      pattern.lengths.length !== pattern.notes.length ||
+      pattern.lengths.some((l) => !Number.isInteger(l) || l < 1)
+    ) {
+      errors.push("音価（lengths）はnotesと同じ長さの1以上の整数配列である必要があります");
     }
     return errors;
   }
@@ -208,11 +319,12 @@ const Model = (() => {
   }
 
   function patternToSound(song, pattern) {
+    const expanded = expandPattern(pattern); // 音価はここで同音程の連続ノートへ分割される
     return {
-      notes: [...pattern.notes],
-      tones: [...pattern.tones],
-      volumes: [...pattern.volumes],
-      effects: [...pattern.effects],
+      notes: [...expanded.notes],
+      tones: [...expanded.tones],
+      volumes: [...expanded.volumes],
+      effects: [...expanded.effects],
       speed: patternSpeed(song, pattern),
     };
   }
@@ -274,13 +386,35 @@ const Model = (() => {
     return { ok: true, sounds, musics, indexByKey };
   }
 
-  // ---- v1（グローバルパターン＋speed）からのマイグレーション ----
+  // ---- 旧フォーマットからのマイグレーション ----
   function migrateProject(data) {
     if (data.formatVersion === FORMAT_VERSION) return data;
-    if (data.formatVersion !== 1) {
+    let project = data;
+    if (project.formatVersion === 1) project = migrateV1toV2(project);
+    if (project.formatVersion === 2) project = migrateV2toV3(project);
+    if (project.formatVersion !== FORMAT_VERSION) {
       throw new Error(`未対応のformatVersionです: ${data.formatVersion}`);
     }
+    return project;
+  }
 
+  // v2 → v3: 各パターンへ音価（lengths、全て1）を付与
+  function migrateV2toV3(data) {
+    return {
+      ...data,
+      formatVersion: 3,
+      songs: data.songs.map((song) => ({
+        ...song,
+        patterns: song.patterns.map((p) => ({
+          ...p,
+          lengths: Array(p.notes.length).fill(1),
+        })),
+      })),
+    };
+  }
+
+  // v1（グローバルパターン＋speed）→ v2（曲がパターンを内包・bpm・rateMode）
+  function migrateV1toV2(data) {
     const globalById = new Map((data.patterns || []).map((p) => [p.id, p]));
     const referenced = new Set();
 
@@ -332,7 +466,7 @@ const Model = (() => {
     }
 
     return {
-      formatVersion: FORMAT_VERSION,
+      formatVersion: 2,
       meta: data.meta || { title: "", created: "", modified: "" },
       songs,
       export: data.export || { musicSlots: Array(MAX_MUSICS).fill(null) },
@@ -366,6 +500,13 @@ const Model = (() => {
     updatePattern,
     removePattern,
     setNoteAt,
+    noteSpanAt,
+    nextNoteStart,
+    placeNote,
+    deleteNoteAt,
+    resizeNoteAt,
+    moveNoteTo,
+    expandPattern,
     resizePattern,
     expandProperty,
     addChannel,
