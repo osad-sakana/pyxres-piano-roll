@@ -233,6 +233,33 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 .lane-block .block-del:hover { color: var(--danger); }
 .lane-row .ch-del { padding: 0 5px; font-size: 11px; }
 
+/* 空白セル（休符）とプレースホルダ */
+.lane-cell {
+  border-radius: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 3px 4px;
+  font-size: 10px;
+}
+.lane-cell.empty {
+  border: 1px dashed var(--border-strong);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgba(128, 128, 128, 0.08) 5px,
+    rgba(128, 128, 128, 0.08) 10px
+  );
+}
+.lane-cell.placeholder { border: 1px dashed var(--border); opacity: 0.45; }
+.lane-cell:hover { border-color: var(--accent); opacity: 1; }
+.lane-cell.drag-over { border-color: var(--accent); background: var(--bg-hover); }
+.lane-cell .block-del { border: none; background: none; box-shadow: none; padding: 0; color: var(--text-dim); font-size: 10px; }
+.lane-cell .block-del:hover { color: var(--danger); }
+
 /* ---- PianoRoll ---- */
 #piano-roll-section { flex: 1; display: flex; flex-direction: column; min-height: 160px; }
 #piano-roll-hint { margin: 0 0 6px; font-size: 11px; color: var(--text-dim); }
