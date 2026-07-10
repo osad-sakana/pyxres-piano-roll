@@ -108,10 +108,11 @@ const PianoRollView = (() => {
       app.setState({ selectedCol: span.start });
       return;
     }
-    // 空きセル: 配置（覆っていたノートは切り詰め）
+    // 空きセル: 配置（覆っていたノートは切り詰め）。
+    // そのままドラッグすると音価を伸ばせる（Logic/Cubaseの描画挙動）
     place(cell.col, cell.note);
     previewNote(pattern, cell.col, cell.note);
-    drag = { mode: "move", col: cell.col, note: cell.note, moved: false, pendingDelete: false };
+    drag = { mode: "resize", start: cell.col, len: 1 };
   }
 
   function onMouseMove(event) {
