@@ -5,9 +5,10 @@
 //     パターンはrateMode（通常/2倍/1/2倍再生）を持つ。
 // v3: 音価（lengths）を追加。ノートは複数列を占有でき、
 //     書き出し・再生時に同音程の連続ノートへ分割展開される。
+// v4: 曲にtranspose（半音）を追加。再生・書き出し時に全ノートへ非破壊で適用される。
 // DOM・Web Audioに依存しない純粋データ層。全操作はイミュータブル。
 const Model = (() => {
-  const FORMAT_VERSION = 3;
+  const FORMAT_VERSION = 4;
   const NOTE_MIN = -1;
   const NOTE_MAX = 59;
   const MAX_CHANNELS = 4;
@@ -22,6 +23,8 @@ const Model = (() => {
   const BPM_MIN = 20;
   const BPM_MAX = 900;
   const DEFAULT_BPM = 120;
+  const TRANSPOSE_MIN = -59;
+  const TRANSPOSE_MAX = 59;
   const DEFAULT_SOUND_SPEED = 30; // 未使用音枠の既定speed（pyxel-core DEFAULT_SOUND_SPEED）
   const DEFAULT_PATTERN_LENGTH = 16;
   const RATE_MODES = ["normal", "double", "half"];
@@ -50,7 +53,7 @@ const Model = (() => {
   }
 
   function createSong(id, name = "") {
-    return { id, name, bpm: DEFAULT_BPM, patterns: [], channels: [[]] };
+    return { id, name, bpm: DEFAULT_BPM, transpose: 0, patterns: [], channels: [[]] };
   }
 
   function nextId(items, prefix) {
@@ -271,9 +274,39 @@ const Model = (() => {
     return base;
   }
 
-  // 再生・書き出し用に、音価を分割展開しspeedを確定させたパターンを得る
+  // ---- トランスポーズ（曲単位・非破壊）----
+  // 音域(0〜59)からはみ出す場合は端へクランプする
+  function transposeNote(note, semitones) {
+    if (note < 0) return -1; // 休符はそのまま
+    return Math.min(NOTE_MAX, Math.max(0, note + semitones));
+  }
+
+  function transposeNotes(notes, semitones) {
+    if (!semitones) return notes;
+    return notes.map((n) => transposeNote(n, semitones));
+  }
+
+  // 曲のtransposeでクランプ（音域外→端へ吸着）が発生するノート数
+  function transposeClampCount(song) {
+    const t = song.transpose || 0;
+    if (!t) return 0;
+    let count = 0;
+    for (const pattern of song.patterns) {
+      for (const n of pattern.notes) {
+        if (n >= 0 && (n + t < 0 || n + t > NOTE_MAX)) count++;
+      }
+    }
+    return count;
+  }
+
+  // 再生・書き出し用に、音価を分割展開しトランスポーズとspeedを確定させたパターンを得る
   function resolvePattern(song, pattern) {
-    return { ...expandPattern(pattern), speed: patternSpeed(song, pattern) };
+    const expanded = expandPattern(pattern);
+    return {
+      ...expanded,
+      notes: transposeNotes(expanded.notes, song.transpose || 0),
+      speed: patternSpeed(song, pattern),
+    };
   }
 
   function validatePattern(pattern) {
@@ -308,6 +341,13 @@ const Model = (() => {
     if (!Number.isInteger(song.bpm) || song.bpm < BPM_MIN || song.bpm > BPM_MAX) {
       errors.push(`BPMは${BPM_MIN}〜${BPM_MAX}である必要があります`);
     }
+    if (
+      !Number.isInteger(song.transpose) ||
+      song.transpose < TRANSPOSE_MIN ||
+      song.transpose > TRANSPOSE_MAX
+    ) {
+      errors.push(`移調は${TRANSPOSE_MIN}〜${TRANSPOSE_MAX}半音である必要があります`);
+    }
     if (song.channels.length > MAX_CHANNELS) {
       errors.push(`チャンネルは最大${MAX_CHANNELS}本です`);
     }
@@ -321,7 +361,7 @@ const Model = (() => {
   function patternToSound(song, pattern) {
     const expanded = expandPattern(pattern); // 音価はここで同音程の連続ノートへ分割される
     return {
-      notes: [...expanded.notes],
+      notes: transposeNotes([...expanded.notes], song.transpose || 0),
       tones: [...expanded.tones],
       volumes: [...expanded.volumes],
       effects: [...expanded.effects],
@@ -392,10 +432,20 @@ const Model = (() => {
     let project = data;
     if (project.formatVersion === 1) project = migrateV1toV2(project);
     if (project.formatVersion === 2) project = migrateV2toV3(project);
+    if (project.formatVersion === 3) project = migrateV3toV4(project);
     if (project.formatVersion !== FORMAT_VERSION) {
       throw new Error(`未対応のformatVersionです: ${data.formatVersion}`);
     }
     return project;
+  }
+
+  // v3 → v4: 各曲へtranspose（0）を付与
+  function migrateV3toV4(data) {
+    return {
+      ...data,
+      formatVersion: 4,
+      songs: data.songs.map((song) => ({ ...song, transpose: 0 })),
+    };
   }
 
   // v2 → v3: 各パターンへ音価（lengths、全て1）を付与
@@ -488,6 +538,8 @@ const Model = (() => {
     BPM_MIN,
     BPM_MAX,
     DEFAULT_BPM,
+    TRANSPOSE_MIN,
+    TRANSPOSE_MAX,
     RATE_MODES,
     createProject,
     createPattern,
@@ -513,6 +565,8 @@ const Model = (() => {
     removeChannel,
     bpmToSpeed,
     patternSpeed,
+    transposeNote,
+    transposeClampCount,
     resolvePattern,
     validatePattern,
     validateSong,
