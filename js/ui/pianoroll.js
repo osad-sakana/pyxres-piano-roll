@@ -1,5 +1,6 @@
 "use strict";
 // PianoRollView: 縦60行×横note数のcanvas編集（§4.2）
+// 音価対応: ノートは複数列を占有し、ブロック右端のドラッグで長さを変更できる。
 window.APP_VIEWS = window.APP_VIEWS || [];
 
 const PianoRollView = (() => {
@@ -7,13 +8,14 @@ const PianoRollView = (() => {
   const COL_W = 22;
   const ROW_H = 12;
   const ROWS = 60; // note値0〜59（C0〜B4）
+  const EDGE_W = 6; // 右端のリサイズ判定幅（px）
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
 
   let app = null;
   let canvas = null;
   let ctx = null;
-  // ドラッグ状態（移調・移動 / クリック削除の判定）
+  // ドラッグ状態: { mode: "move" | "resize", ... }
   let drag = null;
   // 直近に入力した音程。休符列でのEnter入力に使う
   let lastNote = 24;
@@ -26,14 +28,28 @@ const PianoRollView = (() => {
     return ROWS - 1 - row;
   }
 
-  function cellAt(event) {
+  function pointAt(event) {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left - KEY_W;
-    const y = event.clientY - rect.top;
-    const col = Math.floor(x / COL_W);
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function cellAt(event) {
+    const { x, y } = pointAt(event);
+    const col = Math.floor((x - KEY_W) / COL_W);
     const row = Math.floor(y / ROW_H);
-    if (x < 0 || row < 0 || row >= ROWS) return null;
+    if (x < KEY_W || row < 0 || row >= ROWS) return null;
     return { col, note: rowToNote(row) };
+  }
+
+  // セル位置のノートスパンと、右端リサイズ領域かどうかを判定する
+  function hitAt(event, pattern) {
+    const cell = cellAt(event);
+    if (!cell || cell.col < 0 || cell.col >= pattern.notes.length) return { cell: null };
+    const span = Model.noteSpanAt(pattern, cell.col);
+    if (!span || span.note !== cell.note) return { cell, span: null, onEdge: false };
+    const edgeX = KEY_W + (span.start + span.len) * COL_W;
+    const { x } = pointAt(event);
+    return { cell, span, onEdge: x >= edgeX - EDGE_W };
   }
 
   function previewNote(pattern, col, note) {
@@ -42,65 +58,92 @@ const PianoRollView = (() => {
     AudioEngine.play(AudioEngine.renderPreviewNote(note, tone, volume));
   }
 
-  function setNote(col, value) {
-    if (value >= 0) lastNote = value;
+  // パターン全体を差し替える形で更新する（Modelの音価ヘルパを使うため）
+  function applyPattern(updated, patch = {}) {
     const state = app.getState();
     app.updateProject(
-      (p) => Model.updatePattern(p, state.songId, state.patternId, {
-        notes: app.currentPattern().notes.map((n, i) => (i === col ? value : n)),
-      }),
-      { selectedCol: col }
+      (p) => Model.updatePattern(p, state.songId, state.patternId, updated),
+      patch
     );
   }
 
-  function moveNote(fromCol, toCol, note) {
-    if (note >= 0) lastNote = note;
-    const state = app.getState();
-    app.updateProject(
-      (p) => Model.updatePattern(p, state.songId, state.patternId, {
-        notes: app.currentPattern().notes.map((n, i) => {
-          if (i === toCol) return note;
-          if (i === fromCol && fromCol !== toCol) return -1;
-          return n;
-        }),
-      }),
-      { selectedCol: toCol }
-    );
+  function place(col, value, len = null) {
+    lastNote = value;
+    applyPattern(Model.placeNote(app.currentPattern(), col, value, len), { selectedCol: col });
+  }
+
+  function remove(col) {
+    applyPattern(Model.deleteNoteAt(app.currentPattern(), col), { selectedCol: col });
+  }
+
+  function move(fromCol, toCol, value) {
+    lastNote = value;
+    applyPattern(Model.moveNoteTo(app.currentPattern(), fromCol, toCol, value), {
+      selectedCol: toCol,
+    });
+  }
+
+  function resize(start, len) {
+    applyPattern(Model.resizeNoteAt(app.currentPattern(), start, len));
   }
 
   function onMouseDown(event) {
     const pattern = app.currentPattern();
     if (!pattern) return;
-    const cell = cellAt(event);
-    if (!cell || cell.col < 0 || cell.col >= pattern.notes.length) return;
+    const { cell, span, onEdge } = hitAt(event, pattern);
+    if (!cell) return;
 
-    const existing = pattern.notes[cell.col];
-    if (existing === cell.note) {
-      // 既存ノート上: mouseupまで動かなければ削除、動けば移動
-      drag = { col: cell.col, note: cell.note, moved: false, pendingDelete: true };
-    } else {
-      setNote(cell.col, cell.note); // 配置（同一列の旧ノートは上書き＝1列1音）
-      previewNote(pattern, cell.col, cell.note);
-      drag = { col: cell.col, note: cell.note, moved: false, pendingDelete: false };
+    if (span && onEdge) {
+      // 右端: 音価の変更モード
+      drag = { mode: "resize", start: span.start, len: span.len };
+      app.setState({ selectedCol: span.start });
+      return;
     }
+    if (span) {
+      // ノート上: mouseupまで動かなければ削除、動けば移動
+      drag = { mode: "move", col: span.start, note: span.note, moved: false, pendingDelete: true };
+      app.setState({ selectedCol: span.start });
+      return;
+    }
+    // 空きセル: 配置（覆っていたノートは切り詰め）
+    place(cell.col, cell.note);
+    previewNote(pattern, cell.col, cell.note);
+    drag = { mode: "move", col: cell.col, note: cell.note, moved: false, pendingDelete: false };
   }
 
   function onMouseMove(event) {
-    if (!drag) return;
     const pattern = app.currentPattern();
     if (!pattern) return;
-    const cell = cellAt(event);
-    if (!cell || cell.col < 0 || cell.col >= pattern.notes.length) return;
-    if (cell.col === drag.col && cell.note === drag.note) return;
 
-    moveNote(drag.col, cell.col, cell.note);
+    if (!drag) {
+      const { span, onEdge } = hitAt(event, pattern);
+      canvas.style.cursor = span && onEdge ? "ew-resize" : "crosshair";
+      return;
+    }
+
+    const cell = cellAt(event);
+    if (!cell) return;
+    const col = Math.min(pattern.notes.length - 1, Math.max(0, cell.col));
+
+    if (drag.mode === "resize") {
+      const len = Math.max(1, col - drag.start + 1);
+      if (len !== drag.len) {
+        resize(drag.start, len);
+        drag = { ...drag, len };
+      }
+      return;
+    }
+
+    if (cell.col < 0 || cell.col >= pattern.notes.length) return;
+    if (cell.col === drag.col && cell.note === drag.note) return;
+    move(drag.col, cell.col, cell.note);
     previewNote(pattern, cell.col, cell.note);
-    drag = { col: cell.col, note: cell.note, moved: true, pendingDelete: false };
+    drag = { ...drag, col: cell.col, note: cell.note, moved: true, pendingDelete: false };
   }
 
   function onMouseUp() {
-    if (drag && drag.pendingDelete && !drag.moved) {
-      setNote(drag.col, -1);
+    if (drag && drag.mode === "move" && drag.pendingDelete && !drag.moved) {
+      remove(drag.col);
     }
     drag = null;
   }
@@ -140,28 +183,28 @@ const PianoRollView = (() => {
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
       if (state.selectedCol === null) return;
-      const current = pattern.notes[state.selectedCol];
-      if (current < 0) return; // 休符列は対象外
+      const span = Model.noteSpanAt(pattern, state.selectedCol);
+      if (!span) return; // 休符列は対象外
       const delta = event.key === "ArrowUp" ? 1 : -1;
-      const note = current + delta;
+      const note = span.note + delta;
       if (note < 0 || note > Model.NOTE_MAX) return; // 音域端では止める
-      setNote(state.selectedCol, note);
-      previewNote(pattern, state.selectedCol, note);
+      place(span.start, note); // 音価は保たれる
+      previewNote(pattern, span.start, note);
       return;
     }
 
     if (event.key === "Enter") {
       event.preventDefault();
       if (state.selectedCol === null) return;
-      const current = pattern.notes[state.selectedCol];
-      if (current < 0) {
+      const span = Model.noteSpanAt(pattern, state.selectedCol);
+      if (!span) {
         // 休符列: 直近に入力した音程で配置
-        setNote(state.selectedCol, lastNote);
+        place(state.selectedCol, lastNote);
         previewNote(pattern, state.selectedCol, lastNote);
       } else {
-        // 音符列: 休符に変更（音程は記憶し、再度Enterで復活できるようにする）
-        lastNote = current;
-        setNote(state.selectedCol, -1);
+        // 音符上: 休符に変更（音程は記憶し、再度Enterで復活できるようにする）
+        lastNote = span.note;
+        remove(state.selectedCol);
       }
     }
   }
@@ -235,13 +278,19 @@ const PianoRollView = (() => {
       }
     }
 
-    // ノート
-    ctx.fillStyle = colors.note;
+    // ノート（音価分の幅で描画し、右端にリサイズハンドルを付ける）
     for (let col = 0; col < cols; col++) {
       const note = pattern.notes[col];
       if (note < 0) continue;
+      const len = Math.min(pattern.lengths[col] || 1, cols - col);
       const row = ROWS - 1 - note;
-      ctx.fillRect(KEY_W + col * COL_W + 1, row * ROW_H + 1, COL_W - 2, ROW_H - 2);
+      const x = KEY_W + col * COL_W + 1;
+      const y = row * ROW_H + 1;
+      const w = len * COL_W - 2;
+      ctx.fillStyle = colors.note;
+      ctx.fillRect(x, y, w, ROW_H - 2);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(x + w - 3, y, 3, ROW_H - 2);
     }
   }
 
