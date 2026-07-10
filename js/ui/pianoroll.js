@@ -213,76 +213,104 @@ const PianoRollView = (() => {
     }
   }
 
+  function rollColors() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name) => css.getPropertyValue(name).trim();
+    return {
+      bg: v("--roll-bg"),
+      rowAlt: v("--roll-row-alt"),
+      grid: v("--roll-grid"),
+      gridStrong: v("--roll-grid-strong"),
+      cLine: v("--roll-c-line"),
+      selCol: v("--roll-selected-col"),
+      note: v("--roll-note"),
+      noteBorder: v("--roll-note-border"),
+      keyWhite: v("--roll-key-white"),
+      keyBlack: v("--roll-key-black"),
+      keyBorder: v("--roll-key-border"),
+      label: v("--roll-label"),
+    };
+  }
+
   function draw(state) {
     const pattern = app.currentPattern();
     const cols = pattern ? pattern.notes.length : 0;
     canvas.width = KEY_W + cols * COL_W;
     canvas.height = ROWS * ROW_H;
 
-    const css = getComputedStyle(document.documentElement);
-    const colors = {
-      bg: css.getPropertyValue("--bg-panel").trim(),
-      bgDark: "#22232b",
-      grid: css.getPropertyValue("--border").trim(),
-      text: css.getPropertyValue("--text-dim").trim(),
-      note: css.getPropertyValue("--note").trim(),
-      accent: css.getPropertyValue("--accent").trim(),
-    };
-
+    const colors = rollColors();
     ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!pattern) return;
 
-    // 行の縞（黒鍵行を暗く）とCの行の区切り
+    // 行の縞（黒鍵行を暗く）
+    ctx.fillStyle = colors.rowAlt;
     for (let row = 0; row < ROWS; row++) {
-      const note = rowToNote(row);
-      if (BLACK_KEYS.has(note % 12)) {
-        ctx.fillStyle = colors.bgDark;
+      if (BLACK_KEYS.has(rowToNote(row) % 12)) {
         ctx.fillRect(KEY_W, row * ROW_H, cols * COL_W, ROW_H);
-      }
-      if (note % 12 === 0) {
-        ctx.strokeStyle = colors.grid;
-        ctx.beginPath();
-        ctx.moveTo(0, (row + 1) * ROW_H + 0.5);
-        ctx.lineTo(canvas.width, (row + 1) * ROW_H + 0.5);
-        ctx.stroke();
       }
     }
 
     // 選択列のハイライト
     if (state.selectedCol !== null && state.selectedCol < cols) {
-      ctx.fillStyle = "rgba(79, 193, 255, 0.10)";
+      ctx.fillStyle = colors.selCol;
       ctx.fillRect(KEY_W + state.selectedCol * COL_W, 0, COL_W, canvas.height);
     }
 
-    // グリッド線（4列ごとに強調）
+    // 縦グリッド（Domino風の緑系。4列=1拍ごとに強調）
     for (let col = 0; col <= cols; col++) {
-      ctx.strokeStyle = colors.grid;
-      ctx.globalAlpha = col % 4 === 0 ? 1 : 0.35;
+      ctx.strokeStyle = col % 4 === 0 ? colors.gridStrong : colors.grid;
       ctx.beginPath();
       ctx.moveTo(KEY_W + col * COL_W + 0.5, 0);
       ctx.lineTo(KEY_W + col * COL_W + 0.5, canvas.height);
       ctx.stroke();
     }
-    ctx.globalAlpha = 1;
 
-    // 鍵盤ラベル列
-    ctx.fillStyle = colors.bgDark;
-    ctx.fillRect(0, 0, KEY_W, canvas.height);
-    ctx.font = "9px sans-serif";
+    // Cの行の横区切り
+    ctx.strokeStyle = colors.cLine;
     for (let row = 0; row < ROWS; row++) {
-      const note = rowToNote(row);
-      if (BLACK_KEYS.has(note % 12)) {
-        ctx.fillStyle = "#111";
-        ctx.fillRect(0, row * ROW_H + 1, KEY_W - 14, ROW_H - 2);
-      }
-      if (note % 12 === 0) {
-        ctx.fillStyle = colors.text;
-        ctx.fillText(noteName(note), KEY_W - 13, (row + 1) * ROW_H - 3);
+      if (rowToNote(row) % 12 === 0) {
+        ctx.beginPath();
+        ctx.moveTo(KEY_W, (row + 1) * ROW_H + 0.5);
+        ctx.lineTo(canvas.width, (row + 1) * ROW_H + 0.5);
+        ctx.stroke();
       }
     }
 
-    // ノート（音価分の幅で描画し、右端にリサイズハンドルを付ける）
+    // 左端の鍵盤（Domino風: 白鍵ベース＋黒鍵バー）
+    ctx.fillStyle = colors.keyWhite;
+    ctx.fillRect(0, 0, KEY_W, canvas.height);
+    for (let row = 0; row < ROWS; row++) {
+      const note = rowToNote(row);
+      const pc = note % 12;
+      if (BLACK_KEYS.has(pc)) {
+        ctx.fillStyle = colors.keyBlack;
+        ctx.fillRect(0, row * ROW_H, Math.floor(KEY_W * 0.55), ROW_H);
+      }
+      // 白鍵同士の境目（B/C・E/Fの間）に区切り線を引く
+      if (pc === 0 || pc === 5) {
+        ctx.strokeStyle = colors.keyBorder;
+        ctx.beginPath();
+        ctx.moveTo(0, (row + 1) * ROW_H + 0.5);
+        ctx.lineTo(KEY_W, (row + 1) * ROW_H + 0.5);
+        ctx.stroke();
+      }
+    }
+    ctx.font = "9px sans-serif";
+    ctx.fillStyle = colors.label;
+    for (let row = 0; row < ROWS; row++) {
+      const note = rowToNote(row);
+      if (note % 12 === 0) {
+        ctx.fillText(noteName(note), KEY_W - 15, (row + 1) * ROW_H - 3);
+      }
+    }
+    ctx.strokeStyle = colors.keyBorder;
+    ctx.beginPath();
+    ctx.moveTo(KEY_W - 0.5, 0);
+    ctx.lineTo(KEY_W - 0.5, canvas.height);
+    ctx.stroke();
+
+    // ノート（音価分の幅・縁取りつき。右端はリサイズハンドル）
     for (let col = 0; col < cols; col++) {
       const note = pattern.notes[col];
       if (note < 0) continue;
@@ -291,10 +319,13 @@ const PianoRollView = (() => {
       const x = KEY_W + col * COL_W + 1;
       const y = row * ROW_H + 1;
       const w = len * COL_W - 2;
+      const h = ROW_H - 2;
       ctx.fillStyle = colors.note;
-      ctx.fillRect(x, y, w, ROW_H - 2);
-      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-      ctx.fillRect(x + w - 3, y, 3, ROW_H - 2);
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = colors.noteBorder;
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      ctx.fillStyle = colors.noteBorder;
+      ctx.fillRect(x + w - 3, y + 1, 2, h - 2);
     }
   }
 

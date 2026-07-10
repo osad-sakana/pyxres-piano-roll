@@ -1,14 +1,72 @@
+/* ライトテーマ（既定）: Domino風のクラシックなグレーUI */
 :root {
+  --bg: #d9d7d0;
+  --bg-panel: #f0efec;
+  --bg-input: #ffffff;
+  --bg-hover: #e2e8f2;
+  --border: #a5a29a;
+  --border-strong: #7d7a72;
+  --text: #21201d;
+  --text-dim: #6b675e;
+  --accent: #2f5fa8;
+  --accent-weak: #cfdcf0;
+  --danger: #b3261e;
+  --warn: #b26a00;
+  --backdrop: rgba(60, 60, 60, 0.35);
+
+  /* チャンネルレーンのブロック */
+  --block-bg: #d7e3f5;
+  --block-border: #4a76b8;
+  --block-selected-bg: #ffe3b3;
+  --block-selected-border: #d97e00;
+
+  /* ピアノロール（Domino風: テーマによらず暗いキャンバス） */
+  --roll-bg: #191919;
+  --roll-row-alt: #242424;
+  --roll-grid: #2e3a2e;
+  --roll-grid-strong: #4c6a4c;
+  --roll-c-line: #565656;
+  --roll-selected-col: rgba(90, 160, 255, 0.16);
+  --roll-note: #ff9224;
+  --roll-note-border: #8f4a00;
+  --roll-key-white: #f4f2ec;
+  --roll-key-black: #17140f;
+  --roll-key-border: #8d8a82;
+  --roll-label: #5a564d;
+}
+
+[data-theme="dark"] {
   --bg: #1e1f26;
   --bg-panel: #282a33;
+  --bg-input: #1a1b21;
   --bg-hover: #343743;
   --border: #3d404d;
+  --border-strong: #565a6b;
   --text: #d8dae3;
   --text-dim: #8a8d9c;
   --accent: #4fc1ff;
-  --accent-dim: #2a6d94;
+  --accent-weak: #2a4a63;
   --danger: #ff6b6b;
-  --note: #ffd166;
+  --warn: #ffd166;
+  --backdrop: rgba(0, 0, 0, 0.55);
+
+  --block-bg: #2a4a63;
+  --block-border: #4fc1ff;
+  --block-selected-bg: #6a4a14;
+  --block-selected-border: #ffb340;
+
+  --roll-bg: #16171c;
+  --roll-row-alt: #1f2027;
+  --roll-grid: #2a3330;
+  --roll-grid-strong: #3f5a50;
+  --roll-c-line: #4a4d59;
+  --roll-selected-col: rgba(79, 193, 255, 0.12);
+  --roll-note: #ffa030;
+  --roll-note-border: #8f4a00;
+  --roll-key-white: #dad8d2;
+  --roll-key-black: #0c0a07;
+  --roll-key-border: #55524b;
+  --roll-label: #8a8d9c;
 }
 
 * { box-sizing: border-box; }
@@ -17,7 +75,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-family: "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
   font-size: 13px;
   height: 100vh;
   display: flex;
@@ -36,25 +94,29 @@ h2 {
 }
 
 button {
-  background: var(--bg-hover);
+  background: var(--bg-panel);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset;
 }
-button:hover { background: var(--accent-dim); }
-button:disabled { opacity: 0.4; cursor: default; }
+[data-theme="dark"] button { box-shadow: none; }
+button:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+button:active { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) inset; }
+button:disabled { opacity: 0.45; cursor: default; }
 
 input[type="text"], input[type="number"], select {
-  background: var(--bg);
+  background: var(--bg-input);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 3px 6px;
   font-size: 12px;
 }
+input:focus, select:focus { outline: 1px solid var(--accent); }
 
 /* ---- TransportBar ---- */
 #transport-bar {
@@ -67,7 +129,10 @@ input[type="text"], input[type="number"], select {
 }
 #transport-bar .spacer { flex: 1; }
 #transport-bar .loop-label { color: var(--text-dim); display: flex; align-items: center; gap: 3px; }
-#btn-play-pattern.playing, #btn-play-song.playing { background: var(--accent-dim); border-color: var(--accent); }
+#btn-play-pattern.playing, #btn-play-song.playing {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+}
 
 /* ---- レイアウト ---- */
 #main-layout { display: flex; flex: 1; min-height: 0; }
@@ -85,20 +150,25 @@ input[type="text"], input[type="number"], select {
 .list-section ul { list-style: none; margin: 0; padding: 0; }
 .list-section li {
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
+  border: 1px solid transparent;
 }
 .list-section li:hover { background: var(--bg-hover); }
-.list-section li.selected { background: var(--accent-dim); }
+.list-section li.selected {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+}
 .list-section li .item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-section li .del-btn {
   padding: 0 5px;
   font-size: 11px;
   border: none;
   background: none;
+  box-shadow: none;
   color: var(--text-dim);
 }
 .list-section li .del-btn:hover { color: var(--danger); }
@@ -118,7 +188,7 @@ input[type="text"], input[type="number"], select {
 #channel-lane {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 8px;
   flex-shrink: 0;
 }
@@ -136,12 +206,13 @@ input[type="text"], input[type="number"], select {
   min-height: 28px;
   padding: 2px;
   border: 1px dashed var(--border);
-  border-radius: 4px;
+  border-radius: 3px;
+  background: var(--bg-input);
 }
-.lane-blocks.drag-over { border-color: var(--accent); background: rgba(79, 193, 255, 0.08); }
+.lane-blocks.drag-over { border-color: var(--accent); background: var(--bg-hover); }
 .lane-block {
-  background: var(--accent-dim);
-  border: 1px solid var(--accent);
+  background: var(--block-bg);
+  border: 1px solid var(--block-border);
   border-radius: 3px;
   padding: 3px 6px;
   font-size: 11px;
@@ -154,29 +225,24 @@ input[type="text"], input[type="number"], select {
   align-items: center;
   gap: 4px;
 }
-.lane-block.selected-pattern { background: #7a5c1e; border-color: var(--note); }
-.lane-block .block-del { border: none; background: none; padding: 0; color: var(--text-dim); font-size: 10px; }
+.lane-block.selected-pattern {
+  background: var(--block-selected-bg);
+  border-color: var(--block-selected-border);
+}
+.lane-block .block-del { border: none; background: none; box-shadow: none; padding: 0; color: var(--text-dim); font-size: 10px; }
 .lane-block .block-del:hover { color: var(--danger); }
 .lane-row .ch-del { padding: 0 5px; font-size: 11px; }
 
 /* ---- PianoRoll ---- */
 #piano-roll-section { flex: 1; display: flex; flex-direction: column; min-height: 160px; }
 #piano-roll-hint { margin: 0 0 6px; font-size: 11px; color: var(--text-dim); }
-dialog h3 { font-size: 13px; margin: 12px 0 4px; }
-dialog kbd {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0 4px;
-  font-size: 11px;
-}
 #piano-roll-scroll {
   flex: 1;
   min-height: 140px;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--roll-bg);
 }
 #piano-roll { display: block; cursor: crosshair; }
 
@@ -184,7 +250,7 @@ dialog kbd {
 #property-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 8px 10px;
   display: flex;
   flex-wrap: wrap;
@@ -200,16 +266,24 @@ dialog kbd {
 dialog {
   background: var(--bg-panel);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
   padding: 16px 20px;
   max-width: 480px;
 }
-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+dialog::backdrop { background: var(--backdrop); }
 dialog h2 { color: var(--text); font-size: 15px; }
+dialog h3 { font-size: 13px; margin: 12px 0 4px; }
+dialog kbd {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+}
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .export-slot { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 .export-slot select { flex: 1; }
 #export-validation { margin-top: 10px; font-size: 12px; }
 #export-validation .error { color: var(--danger); }
-#export-validation .warn { color: var(--note); }
+#export-validation .warn { color: var(--warn); }

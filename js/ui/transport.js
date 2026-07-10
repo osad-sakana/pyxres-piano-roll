@@ -3,10 +3,26 @@
 window.APP_VIEWS = window.APP_VIEWS || [];
 
 const TransportBar = (() => {
+  const THEME_KEY = "pyxel-music-editor-theme";
   let app = null;
 
   function el(id) {
     return document.getElementById(id);
+  }
+
+  function currentTheme() {
+    return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  }
+
+  function toggleTheme() {
+    const next = currentTheme() === "dark" ? "light" : "dark";
+    if (next === "dark") {
+      document.documentElement.dataset.theme = "dark";
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+    localStorage.setItem(THEME_KEY, next);
+    app.setState({}); // canvasがCSS変数を読み直すよう再描画する
   }
 
   function playPattern() {
@@ -63,11 +79,13 @@ const TransportBar = (() => {
     el("project-title").addEventListener("input", (e) => {
       app.updateProject((p) => ({ ...p, meta: { ...p.meta, title: e.target.value } }));
     });
+    el("btn-theme").addEventListener("click", toggleTheme);
   }
 
   function render(state) {
     el("btn-play-pattern").classList.toggle("playing", state.playing === "pattern");
     el("btn-play-song").classList.toggle("playing", state.playing === "song");
+    el("btn-theme").textContent = currentTheme() === "dark" ? "☀️" : "🌙";
     const title = el("project-title");
     if (title.value !== state.project.meta.title && document.activeElement !== title) {
       title.value = state.project.meta.title;

@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pyxel互換音楽エディタ</title>
+<script>
+// 描画前にテーマを適用してちらつきを防ぐ（既定はライト）
+if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
+  document.documentElement.dataset.theme = "dark";
+}
+</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -18,6 +24,7 @@
   <button id="btn-save-json">JSON保存</button>
   <button id="btn-load-json">JSON読み込み</button>
   <input type="file" id="file-load-json" accept=".json,application/json" hidden>
+  <button id="btn-theme" title="ライト/ダーク切替">🌙</button>
   <button id="btn-help" title="制約と使い方">?</button>
 </header>
 
