@@ -30,7 +30,7 @@ def main(pyxres_path: str) -> None:
     assert list(s2.notes) == [33, 35], list(s2.notes)
     assert s2.speed == 10, s2.speed  # bpm90 → speed20 → double → 10
     s3 = pyxel.sounds[3]
-    assert list(s3.notes) == [36, 38], list(s3.notes)
+    assert list(s3.notes) == [48, 50], list(s3.notes)  # 移調+12が適用される
     assert s3.speed == 60, s3.speed  # bpm60 → speed30 → half → 60
     assert list(pyxel.sounds[4].notes) == []  # 未使用枠は空エントリ
 

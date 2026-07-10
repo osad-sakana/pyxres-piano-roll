@@ -34,12 +34,12 @@ project = Model.updateSong(project, "s1", {
   channels: [["p1", "p2", "p1"], ["p3"]], // p1は曲内共有
 });
 
-// s2: bpm60（speed30相当）、1パターン（1/2倍再生）
+// s2: bpm60（speed30相当）、1パターン（1/2倍再生）、移調+12
 project = Model.addPattern(project, "s2"); // s2/p1
 project = Model.updatePattern(project, "s2", "p1", {
   notes: [36, 38], tones: [0], volumes: [7], effects: [0], rateMode: "half",
 });
-project = Model.updateSong(project, "s2", { bpm: 60, channels: [["p1"]] });
+project = Model.updateSong(project, "s2", { bpm: 60, transpose: 12, channels: [["p1"]] });
 
 project = {
   ...project,
