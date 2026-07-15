@@ -229,8 +229,9 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   background: var(--block-selected-bg);
   border-color: var(--block-selected-border);
 }
-.lane-block .block-del { border: none; background: none; box-shadow: none; padding: 0; color: var(--text-dim); font-size: 10px; }
+.lane-block .block-del, .lane-block .block-dup { border: none; background: none; box-shadow: none; padding: 0; color: var(--text-dim); font-size: 10px; }
 .lane-block .block-del:hover { color: var(--danger); }
+.lane-block .block-dup:hover { color: var(--text); }
 .lane-row .ch-del { padding: 0 5px; font-size: 11px; }
 
 /* 空白セル（休符）とプレースホルダ */

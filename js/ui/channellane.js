@@ -90,6 +90,16 @@ const ChannelLaneView = (() => {
     name.style.flex = "1";
     block.appendChild(name);
 
+    const dup = document.createElement("button");
+    dup.className = "block-dup";
+    dup.textContent = "⧉";
+    dup.title = "右に複製";
+    dup.addEventListener("click", (e) => {
+      e.stopPropagation();
+      app.updateProject((p) => Model.duplicatePatternInChannel(p, song.id, ch, idx));
+    });
+    block.appendChild(dup);
+
     const del = document.createElement("button");
     del.className = "block-del";
     del.textContent = "✕";
