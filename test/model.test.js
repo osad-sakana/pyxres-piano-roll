@@ -439,3 +439,61 @@ test("setNoteAt/resizePattern: 従来通り（パターン単体操作）", () =
   assert.equal(longer.notes.length, 20);
   assert.equal(longer.notes[19], -1);
 });
+
+test("duplicatePatternInChannel: セルのパターンを複製しチャンネルの右隣へ挿入する", () => {
+  let p = baseProject();
+  p = Model.addPattern(p, "s1"); // p2
+  p = Model.updateSong(p, "s1", { channels: [["p1", "p2"]] });
+
+  p = Model.duplicatePatternInChannel(p, "s1", 0, 0);
+
+  const patterns = p.songs[0].patterns;
+  assert.deepEqual(patterns.map((x) => x.id), ["p1", "p3", "p2"]); // p1の直後に複製が挿入される
+  assert.deepEqual(p.songs[0].channels[0], ["p1", "p3", "p2"]); // チャンネルのidx+1に挿入
+});
+
+test("duplicatePatternInChannel: 複製されたパターンの名前は「〜のコピー」になる", () => {
+  let p = baseProject();
+  p = Model.updatePattern(p, "s1", "p1", { name: "ベース" });
+  p = Model.updateSong(p, "s1", { channels: [["p1"]] });
+
+  p = Model.duplicatePatternInChannel(p, "s1", 0, 0);
+
+  const copy = p.songs[0].patterns.find((x) => x.id !== "p1");
+  assert.equal(copy.name, "ベースのコピー");
+});
+
+test("duplicatePatternInChannel: 挿入位置より後ろのセルは1つ後ろへずれる", () => {
+  let p = baseProject();
+  p = Model.addPattern(p, "s1"); // p2
+  p = Model.addPattern(p, "s1"); // p3
+  p = Model.updateSong(p, "s1", { channels: [["p1", null, "p2", "p3"]] });
+
+  p = Model.duplicatePatternInChannel(p, "s1", 0, 0);
+
+  // p1の複製(p4)がidx1へ挿入され、以降は1つずつ後ろへずれる
+  assert.deepEqual(p.songs[0].channels[0], ["p1", "p4", null, "p2", "p3"]);
+});
+
+test("duplicatePatternInChannel: 空白セルに対する呼び出しを拒否する", () => {
+  let p = baseProject();
+  p = Model.updateSong(p, "s1", { channels: [[null, "p1"]] });
+  assert.throws(() => Model.duplicatePatternInChannel(p, "s1", 0, 0), /空白/);
+});
+
+test("duplicatePatternInChannel: セルが指すパターンが存在しない場合は拒否する", () => {
+  let p = baseProject();
+  // 通常の操作では起こらないが、不整合なchannels参照を検査する
+  p = Model.updateSong(p, "s1", { channels: [["p999"]] });
+  assert.throws(() => Model.duplicatePatternInChannel(p, "s1", 0, 0), /見つかりません/);
+});
+
+test("duplicatePatternInChannel: パターン数が上限(64)の場合は拒否する", () => {
+  let p = baseProject();
+  for (let i = 0; i < Model.MAX_PATTERNS_PER_SONG - 1; i++) {
+    p = Model.addPattern(p, "s1");
+  }
+  p = Model.updateSong(p, "s1", { channels: [["p1"]] });
+  assert.equal(p.songs[0].patterns.length, Model.MAX_PATTERNS_PER_SONG);
+  assert.throws(() => Model.duplicatePatternInChannel(p, "s1", 0, 0), /64/);
+});

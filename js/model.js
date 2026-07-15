@@ -136,6 +136,21 @@ const Model = (() => {
     return updateSong(project, songId, { patterns });
   }
 
+  // channels[ch][idx]のパターンを複製し、その直後のセルへ挿入する
+  function duplicatePatternInChannel(project, songId, ch, idx) {
+    const song = findSong(project, songId);
+    const patternId = song.channels[ch][idx];
+    if (patternId == null) {
+      throw new Error("空白セルは複製できません");
+    }
+    const duplicated = duplicatePattern(project, songId, patternId);
+    const duplicatedSong = findSong(duplicated, songId);
+    const srcIndex = duplicatedSong.patterns.findIndex((p) => p.id === patternId);
+    const newPatternId = duplicatedSong.patterns[srcIndex + 1].id;
+    const updatedSong = insertChannelCell(duplicatedSong, ch, idx + 1, newPatternId);
+    return updateSong(duplicated, songId, { channels: updatedSong.channels });
+  }
+
   function updatePattern(project, songId, patternId, patch) {
     const song = findSong(project, songId);
     return updateSong(project, songId, {
@@ -664,6 +679,7 @@ const Model = (() => {
     removeSong,
     addPattern,
     duplicatePattern,
+    duplicatePatternInChannel,
     updatePattern,
     removePattern,
     setNoteAt,
