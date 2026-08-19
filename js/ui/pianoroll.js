@@ -160,6 +160,7 @@ const PianoRollView = (() => {
       const { x } = pointAt(event);
       const rawCol = Math.floor((x - KEY_W) / COL_W);
       const col = Math.min(pattern.notes.length - 1, Math.max(0, rawCol));
+      if (col === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
       app.setState({ selectedCol: col, selectionAnchor: drag.anchor });
       return;
     }
@@ -232,16 +233,22 @@ const PianoRollView = (() => {
       const range = selectionRange(state);
       if (!range) return;
       clipboard = Model.copyRange(pattern, range.start, range.end);
-      applyPattern(Model.clearRange(pattern, range.start, range.end), { selectionAnchor: null });
+      // キャレットを範囲先頭へ戻す（そのまま貼り直せば元の位置に戻せるように）
+      applyPattern(Model.clearRange(pattern, range.start, range.end), {
+        selectedCol: range.start,
+        selectionAnchor: null,
+      });
       return;
     }
 
     if (isCtrlOrCmd && event.key.toLowerCase() === "v") {
       event.preventDefault();
-      if (!clipboard || state.selectedCol === null) return;
-      const start = state.selectedCol;
-      const width = Math.min(clipboard.notes.length, cols - start);
-      if (width <= 0) return;
+      const range = selectionRange(state);
+      if (!clipboard || !range) return;
+      // 範囲選択中でも貼り付けはキャレットではなく選択範囲の先頭から行う
+      const start = range.start;
+      const width = Model.pasteWidth(pattern, start, clipboard);
+      if (width === 0) return;
       applyPattern(Model.pasteRange(pattern, start, clipboard), {
         selectedCol: start,
         selectionAnchor: start + width - 1,
@@ -272,9 +279,9 @@ const PianoRollView = (() => {
       return;
     }
 
-    if (!isCtrlOrCmd && !event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-      event.preventDefault();
-      if (state.selectedCol === null) return;
+    if (!isCtrlOrCmd && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault(); // Shift併用時もページスクロールはさせない（範囲選択の対象外なだけ）
+      if (event.shiftKey || state.selectedCol === null) return;
       const span = Model.noteSpanAt(pattern, state.selectedCol);
       if (!span) return; // 休符列は対象外
       const delta = event.key === "ArrowUp" ? 1 : -1;
@@ -285,9 +292,9 @@ const PianoRollView = (() => {
       return;
     }
 
-    if (!isCtrlOrCmd && !event.shiftKey && event.key === "Enter") {
+    if (!isCtrlOrCmd && event.key === "Enter") {
       event.preventDefault();
-      if (state.selectedCol === null) return;
+      if (event.shiftKey || state.selectedCol === null) return;
       const span = Model.noteSpanAt(pattern, state.selectedCol);
       if (!span) {
         // 休符列: 直近に入力した音程で配置
@@ -339,7 +346,7 @@ const PianoRollView = (() => {
       }
     }
 
-    // 選択範囲のハイライト（単一列選択時はselectedColのみ）
+    // 選択範囲のハイライト。範囲選択中はcaret（現在位置）を重ね塗りして濃く見せる
     const range = selectionRange(state);
     if (range) {
       const start = Math.max(0, range.start);
@@ -349,8 +356,11 @@ const PianoRollView = (() => {
         ctx.fillRect(KEY_W + start * COL_W, 0, (end - start + 1) * COL_W, canvas.height);
       }
     }
-    // caret（現在位置）は同色を重ねて範囲より濃く見せる
-    if (state.selectedCol !== null && state.selectedCol < cols) {
+    if (
+      state.selectionAnchor !== null &&
+      state.selectedCol !== null &&
+      state.selectedCol < cols
+    ) {
       ctx.fillStyle = colors.selCol;
       ctx.fillRect(KEY_W + state.selectedCol * COL_W, 0, COL_W, canvas.height);
     }

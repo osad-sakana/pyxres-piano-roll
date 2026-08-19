@@ -42,9 +42,20 @@ const App = (() => {
     return state;
   }
 
+  // 範囲選択の起点は、キャレットが外れる・パターンが切り替わる操作で自動的に畳む
+  // （呼び出し側でのselectionAnchorのリセット漏れを防ぐ）
+  function normalizePatch(patch) {
+    if ("selectionAnchor" in patch) return patch;
+    const patternChanged = "patternId" in patch && patch.patternId !== state.patternId;
+    if (patch.selectedCol === null || patternChanged) {
+      return { ...patch, selectionAnchor: null };
+    }
+    return patch;
+  }
+
   // UI状態のみの更新（projectを触らない）
   function setState(patch) {
-    state = { ...state, ...patch };
+    state = { ...state, ...normalizePatch(patch) };
     render();
   }
 
@@ -55,7 +66,7 @@ const App = (() => {
       ...project,
       meta: { ...project.meta, modified: new Date().toISOString() },
     };
-    state = { ...state, ...patch, project: stamped };
+    state = { ...state, ...normalizePatch(patch), project: stamped };
     autosave(stamped);
     render();
   }

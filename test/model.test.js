@@ -482,6 +482,16 @@ test("clearRange: 範囲へ左から食い込むノートは削除せず範囲�
   assert.equal(cleared.notes[3], -1); // 28は削除される
 });
 
+test("clearRange: 範囲の両端をまたぐノートは範囲直前まで短縮され、右のはみ出しは失われる", () => {
+  // placeNote/deleteNoteAtと同じ「ノート全体を単位に扱う」仕様通りの挙動
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 24, 8); // col0〜7を占有
+  const cleared = Model.clearRange(pat, 2, 4);
+  assert.equal(cleared.notes[0], 24);
+  assert.equal(cleared.lengths[0], 2); // col2手前までに短縮
+  assert.deepEqual(cleared.notes.slice(1, 8), [-1, -1, -1, -1, -1, -1, -1]); // col5〜7も消える
+});
+
 test("pasteRange: 貼り付け先の既存ノートを上書きする", () => {
   let pat = lengthsFixture();
   const clip = { notes: [36, -1], lengths: [2, 1] };

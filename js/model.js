@@ -276,12 +276,19 @@ const Model = (() => {
     return p;
   }
 
+  // pasteRangeが実際に書き込む列数を返す（0ならno-op）。UIが貼り付け後の
+  // 選択範囲を計算する際にも同じクランプ規則を使えるよう公開する
+  function pasteWidth(pattern, col, clip) {
+    if (!clip || !clip.notes || clip.notes.length === 0) return 0;
+    if (col < 0 || col >= pattern.notes.length) return 0;
+    return Math.min(clip.notes.length, pattern.notes.length - col);
+  }
+
   // clip（copyRangeの戻り値形式）をcolから貼り付ける。既存ノートは上書きし、
   // パターン末尾を超える分は切り詰める（パターン長は変えない）
   function pasteRange(pattern, col, clip) {
-    if (!clip || !clip.notes || clip.notes.length === 0) return pattern;
-    if (col < 0 || col >= pattern.notes.length) return pattern;
-    const width = Math.min(clip.notes.length, pattern.notes.length - col);
+    const width = pasteWidth(pattern, col, clip);
+    if (width === 0) return pattern;
     let p = clearRange(pattern, col, col + width - 1);
     for (let i = 0; i < width; i++) {
       if (clip.notes[i] < 0) continue;
@@ -732,6 +739,7 @@ const Model = (() => {
     copyRange,
     clearRange,
     pasteRange,
+    pasteWidth,
     expandPattern,
     resizePattern,
     expandProperty,
