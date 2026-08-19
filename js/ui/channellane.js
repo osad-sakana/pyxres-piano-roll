@@ -20,7 +20,7 @@ const ChannelLaneView = (() => {
   }
 
   function restWidth(song) {
-    return secondsToWidth((Model.REST_CELL_COLUMNS * Model.bpmToSpeed(song.bpm)) / 120);
+    return secondsToWidth((Model.columnsPerBar(song) * Model.bpmToSpeed(song.bpm)) / 120);
   }
 
   // ドロップ処理。kind: "block"（挿入） / "cell"（空白セル・プレースホルダへ配置）
@@ -126,7 +126,7 @@ const ChannelLaneView = (() => {
     cell.style.width = restWidth(song);
     cell.title = isPlaceholder
       ? "ドロップまたはクリックでここへ配置"
-      : "空白（1小節の休符）。ドロップ/クリックで配置";
+      : `空白（1小節=${Model.columnsPerBar(song)}列の休符）。ドロップ/クリックで配置`;
 
     if (!isPlaceholder) {
       const del = document.createElement("button");
@@ -155,10 +155,12 @@ const ChannelLaneView = (() => {
     const rows = document.getElementById("lane-rows");
     const bpmInput = document.getElementById("song-bpm");
     const transposeInput = document.getElementById("song-transpose");
+    const timesigSelect = document.getElementById("song-timesig");
     rows.textContent = "";
 
     bpmInput.disabled = !song;
     transposeInput.disabled = !song;
+    timesigSelect.disabled = !song;
     if (!song) {
       title.textContent = "曲構造（曲未選択）";
       return;
@@ -172,6 +174,9 @@ const ChannelLaneView = (() => {
       String(transposeInput.value) !== String(song.transpose)
     ) {
       transposeInput.value = song.transpose;
+    }
+    if (document.activeElement !== timesigSelect && timesigSelect.value !== song.timeSignature) {
+      timesigSelect.value = song.timeSignature;
     }
     const patternById = new Map(song.patterns.map((p) => [p.id, p]));
 
@@ -245,6 +250,14 @@ const ChannelLaneView = (() => {
         ? song.transpose
         : Math.min(Model.TRANSPOSE_MAX, Math.max(Model.TRANSPOSE_MIN, raw));
       app.updateProject((p) => Model.updateSong(p, song.id, { transpose }));
+    });
+    document.getElementById("song-timesig").addEventListener("change", (e) => {
+      const song = app.currentSong();
+      if (!song) return;
+      const timeSignature = Model.TIME_SIGNATURES.includes(e.target.value)
+        ? e.target.value
+        : song.timeSignature;
+      app.updateProject((p) => Model.updateSong(p, song.id, { timeSignature }));
     });
   }
 

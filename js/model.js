@@ -8,9 +8,11 @@
 // v4: 曲にtranspose（半音）を追加。再生・書き出し時に全ノートへ非破壊で適用される。
 // v5: チャンネルをグリッド化。セルはpatternId | null（空白=1小節の休符）で、
 //     トラックの途中からパターンを配置できる。書き出し時は空白を休符サウンドへ変換。
+// v6: 曲にtimeSignature（"4/4" | "3/4"）を追加。1小節の列数はこれで決まる
+//     （4/4=16列・3/4=12列）。空白セル（休符）の長さもこれに追従する。
 // DOM・Web Audioに依存しない純粋データ層。全操作はイミュータブル。
 const Model = (() => {
-  const FORMAT_VERSION = 5;
+  const FORMAT_VERSION = 6;
   const NOTE_MIN = -1;
   const NOTE_MAX = 59;
   const MAX_CHANNELS = 4;
@@ -30,8 +32,16 @@ const Model = (() => {
   const DEFAULT_SOUND_SPEED = 30; // 未使用音枠の既定speed（pyxel-core DEFAULT_SOUND_SPEED）
   const DEFAULT_PATTERN_LENGTH = 16;
   const RATE_MODES = ["normal", "double", "half"];
-  const REST_CELL_COLUMNS = 16; // 空白セル1個の長さ（16列=1小節ぶんの休符）
+  const REST_CELL_COLUMNS = 16; // 4/4での空白セル1個の長さ（互換用の既定値）。可変長はcolumnsPerBarを使う
   const REST_KEY = "__rest__"; // 書き出し割り当てで休符サウンドを指すキー
+  const TIME_SIGNATURES = ["4/4", "3/4"];
+  const DEFAULT_TIME_SIGNATURE = "4/4";
+  const BAR_COLUMNS = { "4/4": 16, "3/4": 12 }; // 1小節=拍数×4列（1拍=4分音符=4列で固定）
+
+  // 曲の拍子から1小節あたりの列数を返す（唯一の真実の源。UI側で16/12を直書きしない）
+  function columnsPerBar(song) {
+    return BAR_COLUMNS[song.timeSignature] || REST_CELL_COLUMNS;
+  }
 
   function createProject() {
     const now = new Date().toISOString();
@@ -57,7 +67,15 @@ const Model = (() => {
   }
 
   function createSong(id, name = "") {
-    return { id, name, bpm: DEFAULT_BPM, transpose: 0, patterns: [], channels: [[]] };
+    return {
+      id,
+      name,
+      bpm: DEFAULT_BPM,
+      transpose: 0,
+      timeSignature: DEFAULT_TIME_SIGNATURE,
+      patterns: [],
+      channels: [[]],
+    };
   }
 
   function nextId(items, prefix) {
@@ -390,12 +408,12 @@ const Model = (() => {
     };
   }
 
-  // 空白セル1個ぶんの休符（再生・書き出し共用の形。speedは曲のbpm基準）
+  // 空白セル1個ぶんの休符（再生・書き出し共用の形。speedは曲のbpm基準、長さは曲の拍子基準）
   function restCell(song) {
     return {
       id: null,
       name: "",
-      notes: Array(REST_CELL_COLUMNS).fill(-1),
+      notes: Array(columnsPerBar(song)).fill(-1),
       tones: [0],
       volumes: [7],
       effects: [0],
@@ -455,6 +473,9 @@ const Model = (() => {
     }
     if (song.channels.length > MAX_CHANNELS) {
       errors.push(`チャンネルは最大${MAX_CHANNELS}本です`);
+    }
+    if (!TIME_SIGNATURES.includes(song.timeSignature)) {
+      errors.push(`拍子は${TIME_SIGNATURES.join("・")}のいずれかである必要があります`);
     }
     return errors;
   }
@@ -553,10 +574,20 @@ const Model = (() => {
     if (project.formatVersion === 2) project = migrateV2toV3(project);
     if (project.formatVersion === 3) project = migrateV3toV4(project);
     if (project.formatVersion === 4) project = migrateV4toV5(project);
+    if (project.formatVersion === 5) project = migrateV5toV6(project);
     if (project.formatVersion !== FORMAT_VERSION) {
       throw new Error(`未対応のformatVersionです: ${data.formatVersion}`);
     }
     return project;
+  }
+
+  // v5 → v6: 各曲へtimeSignature（既定"4/4"）を付与
+  function migrateV5toV6(data) {
+    return {
+      ...data,
+      formatVersion: 6,
+      songs: data.songs.map((song) => ({ ...song, timeSignature: DEFAULT_TIME_SIGNATURE })),
+    };
   }
 
   // v4 → v5: チャンネルのグリッド化（形は互換。空白セルnullを許容するようになっただけ）
@@ -666,6 +697,9 @@ const Model = (() => {
     TRANSPOSE_MIN,
     TRANSPOSE_MAX,
     RATE_MODES,
+    TIME_SIGNATURES,
+    DEFAULT_TIME_SIGNATURE,
+    columnsPerBar,
     createProject,
     createPattern,
     createSong,

@@ -46,6 +46,10 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
         <span id="channel-lane-title">曲構造</span>
         <label class="bpm-label">BPM <input type="number" id="song-bpm" min="20" max="900"></label>
         <label class="transpose-label">移調 <input type="number" id="song-transpose" min="-59" max="59" title="半音単位。再生・書き出し時に全ノートへ適用"></label>
+        <label class="timesig-label">拍子 <select id="song-timesig" title="1小節の長さ（曲全体で1つ）">
+          <option value="4/4">4/4</option>
+          <option value="3/4">3/4</option>
+        </select></label>
       </h2>
       <div id="lane-rows"></div>
     </section>
@@ -53,6 +57,7 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
       <h2 id="piano-roll-title">ピアノロール</h2>
       <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符</p>
       <div id="piano-roll-scroll">
+        <canvas id="piano-roll-ruler"></canvas>
         <canvas id="piano-roll"></canvas>
       </div>
     </section>
@@ -88,6 +93,7 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
     <li>音価: 配置時にそのままドラッグ、または既存ノート右端のドラッグで長さを変更。書き出し時は同音程の連続ノートへ分割される</li>
     <li>移調: 曲ごとに±59半音。再生・書き出し時に全ノートへ適用（非破壊）。音域外は端へクランプ</li>
     <li>曲構造: グリッドのセル単位で配置。空白セル=1小節の休符（書き出し時に休符サウンドとして64枠を1つ消費）</li>
+    <li>拍子: 曲ごとに4/4・3/4を選択可能（1小節=16列/12列）。ピアノロール上部に小節番号を表示</li>
     <li>書き出し時: 曲8個以内・4チャンネル以内</li>
   </ul>
   <p>MML表現は保存できません。編集の正本は内部JSON（自動保存＋JSON保存）で、

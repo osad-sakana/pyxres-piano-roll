@@ -10,20 +10,61 @@ function baseProject() {
   return p;
 }
 
-test("createProject: v5スキーマ（songs直下・patternsは曲が内包）", () => {
+test("createProject: v6スキーマ（songs直下・patternsは曲が内包）", () => {
   const p = Model.createProject();
-  assert.equal(p.formatVersion, 5);
+  assert.equal(p.formatVersion, 6);
   assert.deepEqual(p.songs, []);
   assert.equal("patterns" in p, false);
   assert.equal(p.export.musicSlots.length, 8);
 });
 
-test("createSong: bpm既定120・transpose 0・空パターン・1チャンネル", () => {
+test("createSong: bpm既定120・transpose 0・拍子既定4/4・空パターン・1チャンネル", () => {
   const s = Model.createSong("s1");
   assert.equal(s.bpm, 120);
   assert.equal(s.transpose, 0);
+  assert.equal(s.timeSignature, "4/4");
   assert.deepEqual(s.patterns, []);
   assert.deepEqual(s.channels, [[]]);
+});
+
+// ---- 拍子（v6） ----
+
+test("columnsPerBar: 4/4は16列・3/4は12列・未定義は16列（4/4扱い）", () => {
+  assert.equal(Model.columnsPerBar({ timeSignature: "4/4" }), 16);
+  assert.equal(Model.columnsPerBar({ timeSignature: "3/4" }), 12);
+  assert.equal(Model.columnsPerBar({}), 16);
+});
+
+test("restCell: 空白セルの長さが曲の拍子に追従する", () => {
+  const song44 = { ...Model.createSong("s1"), bpm: 120, timeSignature: "4/4" };
+  assert.equal(Model.restCell(song44).notes.length, 16);
+  const song34 = { ...Model.createSong("s1"), bpm: 120, timeSignature: "3/4" };
+  assert.equal(Model.restCell(song34).notes.length, 12);
+});
+
+test("validateSong: 拍子は4/4・3/4のみ許可", () => {
+  assert.deepEqual(Model.validateSong(Model.createSong("s1")), []);
+  assert.equal(Model.validateSong({ ...Model.createSong("s1"), timeSignature: "6/8" }).length, 1);
+  assert.equal(Model.validateSong({ ...Model.createSong("s1"), timeSignature: null }).length, 1);
+});
+
+test("migrateProject: v5→v6で各曲へtimeSignature「4/4」を付与", () => {
+  const v5 = {
+    formatVersion: 5,
+    meta: { title: "", created: "", modified: "" },
+    songs: [
+      {
+        id: "s1", name: "曲1", bpm: 120, transpose: 0,
+        patterns: [Model.createPattern("p1")],
+        channels: [["p1"]],
+      },
+    ],
+    export: { musicSlots: Array(8).fill(null) },
+  };
+  const migrated = Model.migrateProject(v5);
+  assert.equal(migrated.formatVersion, 6);
+  assert.equal(migrated.songs[0].timeSignature, "4/4");
+  assert.equal(migrated.songs[0].bpm, 120); // 他フィールドは保持
 });
 
 test("createPattern: rateMode既定normal・speedは持たない・音価は全て1", () => {
@@ -240,6 +281,21 @@ test("allocateExport: 空白セルは曲ごとの休符サウンド1つに割り
   assert.equal(result.indexByKey.size, 2);
 });
 
+test("allocateExport: 3/4曲では空白セルの休符サウンドが12列になる", () => {
+  let p = baseProject();
+  p = Model.updatePattern(p, "s1", "p1", { notes: [24] });
+  let song = p.songs[0];
+  song = Model.setChannelCell(song, 0, 1, "p1"); // [null, "p1"]
+  p = Model.updateSong(p, "s1", { channels: song.channels, timeSignature: "3/4" });
+  p = { ...p, export: { musicSlots: ["s1", null, null, null, null, null, null, null] } };
+
+  const result = Model.allocateExport(p);
+  assert.equal(result.ok, true);
+  assert.equal(result.sounds[0].notes.length, 12);
+  assert.ok(result.sounds[0].notes.every((n) => n === -1));
+  assert.deepEqual(result.sounds[1].notes, [24]);
+});
+
 test("migrateProject: v1のグローバルパターンを参照曲へ取り込みbpmへ変換", () => {
   const v1 = {
     formatVersion: 1,
@@ -256,7 +312,7 @@ test("migrateProject: v1のグローバルパターンを参照曲へ取り込�
     export: { musicSlots: ["s1", "s2", null, null, null, null, null, null] },
   };
   const migrated = Model.migrateProject(v1);
-  assert.equal(migrated.formatVersion, 5);
+  assert.equal(migrated.formatVersion, 6);
   // 各曲が自分のパターンを持つ（曲間共有は複製に変わる）
   assert.deepEqual(migrated.songs[0].patterns.map((p) => p.id), ["p1", "p2", "p9"]); // 孤児は先頭曲へ
   assert.deepEqual(migrated.songs[1].patterns.map((p) => p.id), ["p1"]);
@@ -286,9 +342,10 @@ test("migrateProject: v2→音価付与・v3→transpose付与・最新はその
     export: { musicSlots: ["s1", null, null, null, null, null, null, null] },
   };
   const migrated2 = Model.migrateProject(v2);
-  assert.equal(migrated2.formatVersion, 5);
+  assert.equal(migrated2.formatVersion, 6);
   assert.deepEqual(migrated2.songs[0].patterns[0].lengths, [1, 1]);
   assert.equal(migrated2.songs[0].transpose, 0); // v4でtransposeが付与される
+  assert.equal(migrated2.songs[0].timeSignature, "4/4"); // v6で拍子が付与される
 });
 
 // ---- トランスポーズ（v4） ----

@@ -16,7 +16,7 @@ def main(pyxres_path: str) -> None:
     pyxel.load(pyxres_path)
 
     # sounds検証（make_test_pyxres.jsの登場順割り当て:
-    #   s1/p1→0, s1/p2→1, s1/休符→2, s1/p3→3, s2/p1→4）
+    #   s1/p1→0, s1/p2→1, s1/休符→2, s1/p3→3, s2/p1→4, s3/休符→5, s3/p1→6）
     s0 = pyxel.sounds[0]
     # 音価len2のノートは同音程の連続ノートへ分割されている
     assert list(s0.notes) == [24, 24, 26, 28], list(s0.notes)
@@ -36,14 +36,21 @@ def main(pyxres_path: str) -> None:
     s4 = pyxel.sounds[4]
     assert list(s4.notes) == [48, 50], list(s4.notes)  # 移調+12が適用される
     assert s4.speed == 60, s4.speed  # bpm60 → speed30 → half → 60
-    assert list(pyxel.sounds[5].notes) == []  # 未使用枠は空エントリ
+    s5 = pyxel.sounds[5]
+    # 3/4曲（s3）の空白セルは12列の休符になる（4/4の16列ではない）
+    assert list(s5.notes) == [-1] * 12, list(s5.notes)
+    assert s5.speed == 15, s5.speed  # bpm120 → speed15
+    s6 = pyxel.sounds[6]
+    assert list(s6.notes) == [24, -1, -1, -1, 24, -1, -1, -1, 24, -1, -1, -1], list(s6.notes)
+    assert list(pyxel.sounds[7].notes) == []  # 未使用枠は空エントリ
 
     # musics検証（曲内のパターン共有と空白セルがindex参照として保たれていること）
     m0 = [list(ch) for ch in pyxel.musics[0].seqs]
     m1 = [list(ch) for ch in pyxel.musics[1].seqs]
+    m2 = [list(ch) for ch in pyxel.musics[2].seqs]
     assert m0 == [[0, 1, 0], [2, 3]], m0  # ch1は休符(2)→p3(3)
     assert m1 == [[4]], m1
-    assert [list(ch) for ch in pyxel.musics[2].seqs] == []  # 空トラック
+    assert m2 == [[5, 6]], m2  # s3: 休符(12列)→p1
 
     pyxel.playm(0)  # 再生開始がエラーなく通ること
     print(f"PASS: pyxel.load() + playm() 正常（Pyxel {pyxel.VERSION}）")
