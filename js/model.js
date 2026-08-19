@@ -273,6 +273,18 @@ const Model = (() => {
     return { notes, lengths };
   }
 
+  // ノート個別編集済み（列数と同長）の属性のみ、列fromColの値を列toColへ引き継ぐ。
+  // expandPatternはノートの開始列の値をスパン全体へ広げるため、ノートが分割されて
+  // 新しい開始列ができるとき引き継がないと、その列にたまたま入っていた値で鳴ってしまう
+  function carryColProps(pattern, fromCol, toCol) {
+    const carry = (field) => {
+      const arr = pattern[field];
+      if (arr.length !== pattern.notes.length) return arr; // 循環配列は全列同値なので不要
+      return arr.map((v, i) => (i === toCol ? arr[fromCol] : v));
+    };
+    return { ...pattern, tones: carry("tones"), volumes: carry("volumes"), effects: carry("effects") };
+  }
+
   // [start, end]を休符にする。範囲の外にはみ出す部分は失わない:
   // 左から食い込むノートは範囲直前まで短縮し、右へ突き抜けるノートは
   // end+1から始まる新しいノートとして残す（範囲の外は選択されていないため）
@@ -284,9 +296,13 @@ const Model = (() => {
     const tailStart = end + 1;
     if (leftSpan && leftSpan.start < start) {
       p = resizeNoteAt(p, leftSpan.start, start - leftSpan.start);
+      // startは休符になるが、後でpasteRangeが同じ列へ新しいノートを置いたとき
+      // 元の音色で鳴るよう種をまいておく（休符列のtone等は鳴らないので副作用はない）
+      p = carryColProps(p, leftSpan.start, start);
     }
     if (rightSpan && rightSpan.start + rightSpan.len > tailStart && tailStart < pattern.notes.length) {
       p = placeNote(p, tailStart, rightSpan.note, rightSpan.start + rightSpan.len - tailStart);
+      p = carryColProps(p, rightSpan.start, tailStart);
     }
     for (let col = start; col <= end; col++) {
       if (p.notes[col] >= 0) p = deleteNoteAt(p, col);

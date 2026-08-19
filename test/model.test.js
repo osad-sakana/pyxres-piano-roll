@@ -539,6 +539,20 @@ test("copyRange+clearRange+pasteRange: 範囲の両端をまたぐノートを�
   assert.equal(totalCovered, 16); // 分割されても音価の合計は元と同じ
 });
 
+test("clearRange+pasteRange: 保持音が分割されても、ノート個別編集したtoneが引き継がれる（HIGH再発防止）", () => {
+  // expandPatternはノートの開始列の値をスパン全体へ広げるため、分割で新しい開始列が
+  // できたときに元の音色を引き継がないと、cut→同位置貼り直しで鳴る音が変わってしまう
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 24, 8); // col0〜7を占有
+  pat = Model.expandProperty(pat, "tones");
+  pat = { ...pat, tones: pat.tones.map((v, i) => (i === 0 ? 3 : v)) };
+  const clip = Model.copyRange(pat, 2, 4);
+  const cut = Model.clearRange(pat, 2, 4);
+  const pasted = Model.pasteRange(cut, 2, clip);
+  const expanded = Model.expandPattern(pasted);
+  assert.deepEqual(expanded.tones.slice(0, 8), Array(8).fill(3));
+});
+
 test("pasteRange: 貼り付け先の既存ノートを上書きする", () => {
   let pat = lengthsFixture();
   const clip = { notes: [36, -1], lengths: [2, 1] };
