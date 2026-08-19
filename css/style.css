@@ -279,7 +279,8 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   border-radius: 4px;
   background: var(--roll-bg);
 }
-#piano-roll-ruler { display: block; position: sticky; top: 0; z-index: 1; }
+#piano-roll-ruler-wrap { overflow: hidden; border: 1px solid var(--border-strong); border-bottom: none; border-radius: 4px 4px 0 0; }
+#piano-roll-ruler { display: block; }
 #piano-roll { display: block; cursor: crosshair; }
 
 /* ---- PropertyPanel ---- */

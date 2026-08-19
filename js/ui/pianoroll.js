@@ -18,6 +18,7 @@ const PianoRollView = (() => {
   let ctx = null;
   let rulerCanvas = null;
   let rulerCtx = null;
+  let rulerWrap = null;
   // ドラッグ状態: { mode: "move" | "resize", ... }
   let drag = null;
   // 直近に入力した音程。休符列でのEnter入力に使う
@@ -238,20 +239,13 @@ const PianoRollView = (() => {
     };
   }
 
-  // 現在の曲の拍子から1小節の列数を得る（未選択時は4/4扱い）
-  function currentColumnsPerBar() {
-    const song = app.currentSong();
-    return song ? Model.columnsPerBar(song) : Model.columnsPerBar({});
-  }
-
-  function draw(state) {
+  function draw(state, colors) {
     const pattern = app.currentPattern();
     const cols = pattern ? pattern.notes.length : 0;
-    const columnsPerBar = currentColumnsPerBar();
+    const columnsPerBar = Model.columnsPerBar(app.currentSong());
     canvas.width = KEY_W + cols * COL_W;
     canvas.height = ROWS * ROW_H;
 
-    const colors = rollColors();
     ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!pattern) return;
@@ -345,14 +339,13 @@ const PianoRollView = (() => {
 
   // パターン内ローカルの小節番号ルーラー（1始まり）。本体canvasとは別canvasで、
   // ヒットテスト・クリック判定（cellAt/hitAt）には一切関与しない
-  function drawRuler() {
+  function drawRuler(colors) {
     const pattern = app.currentPattern();
     const cols = pattern ? pattern.notes.length : 0;
-    const columnsPerBar = currentColumnsPerBar();
+    const columnsPerBar = Model.columnsPerBar(app.currentSong());
     rulerCanvas.width = KEY_W + cols * COL_W;
     rulerCanvas.height = RULER_H;
 
-    const colors = rollColors();
     rulerCtx.fillStyle = colors.rulerBg;
     rulerCtx.fillRect(0, 0, rulerCanvas.width, rulerCanvas.height);
     if (!pattern) return;
@@ -378,10 +371,17 @@ const PianoRollView = (() => {
     ctx = canvas.getContext("2d");
     rulerCanvas = document.getElementById("piano-roll-ruler");
     rulerCtx = rulerCanvas.getContext("2d");
+    rulerWrap = document.getElementById("piano-roll-ruler-wrap");
     canvas.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("keydown", onKeyDown);
+    // 横スクロールのみルーラーへ同期（縦はルーラーをスクロール領域の外に置いて回避）
+    document
+      .getElementById("piano-roll-scroll")
+      .addEventListener("scroll", (e) => {
+        rulerWrap.scrollLeft = e.target.scrollLeft;
+      });
   }
 
   function render(state) {
@@ -390,8 +390,9 @@ const PianoRollView = (() => {
     title.textContent = pattern
       ? `ピアノロール: ${pattern.name || pattern.id}`
       : "ピアノロール（パターン未選択）";
-    draw(state);
-    drawRuler();
+    const colors = rollColors(); // draw/drawRulerで使い回し、getComputedStyle呼び出しを1回に抑える
+    draw(state, colors);
+    drawRuler(colors);
   }
 
   return { init, render };

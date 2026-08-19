@@ -32,15 +32,19 @@ const Model = (() => {
   const DEFAULT_SOUND_SPEED = 30; // 未使用音枠の既定speed（pyxel-core DEFAULT_SOUND_SPEED）
   const DEFAULT_PATTERN_LENGTH = 16;
   const RATE_MODES = ["normal", "double", "half"];
-  const REST_CELL_COLUMNS = 16; // 4/4での空白セル1個の長さ（互換用の既定値）。可変長はcolumnsPerBarを使う
   const REST_KEY = "__rest__"; // 書き出し割り当てで休符サウンドを指すキー
   const TIME_SIGNATURES = ["4/4", "3/4"];
   const DEFAULT_TIME_SIGNATURE = "4/4";
   const BAR_COLUMNS = { "4/4": 16, "3/4": 12 }; // 1小節=拍数×4列（1拍=4分音符=4列で固定）
+  const REST_CELL_COLUMNS = BAR_COLUMNS[DEFAULT_TIME_SIGNATURE]; // 互換用の既定値（4/4の1小節長）
 
-  // 曲の拍子から1小節あたりの列数を返す（唯一の真実の源。UI側で16/12を直書きしない）
+  // 曲の拍子から1小節あたりの列数を返す（唯一の真実の源。UI側で16/12を直書きしない）。
+  // songがnull/未指定、またはtimeSignatureが欠損・不正な値の場合は既定拍子(4/4)を返す
   function columnsPerBar(song) {
-    return BAR_COLUMNS[song.timeSignature] || REST_CELL_COLUMNS;
+    const ts = song && song.timeSignature;
+    return Object.prototype.hasOwnProperty.call(BAR_COLUMNS, ts)
+      ? BAR_COLUMNS[ts]
+      : BAR_COLUMNS[DEFAULT_TIME_SIGNATURE];
   }
 
   function createProject() {
@@ -53,12 +57,12 @@ const Model = (() => {
     };
   }
 
-  function createPattern(id, name = "") {
+  function createPattern(id, name = "", length = DEFAULT_PATTERN_LENGTH) {
     return {
       id,
       name,
-      notes: Array(DEFAULT_PATTERN_LENGTH).fill(-1),
-      lengths: Array(DEFAULT_PATTERN_LENGTH).fill(1), // 音価（占有する列数）。notes[col] >= 0 の位置のみ有効
+      notes: Array(length).fill(-1),
+      lengths: Array(length).fill(1), // 音価（占有する列数）。notes[col] >= 0 の位置のみ有効
       tones: [0],
       volumes: [7],
       effects: [0],
@@ -124,8 +128,9 @@ const Model = (() => {
       throw new Error(`パターンは1曲あたり最大${MAX_PATTERNS_PER_SONG}個です`);
     }
     const id = nextId(song.patterns, "p");
+    const pattern = createPattern(id, name || `パターン${id.slice(1)}`, columnsPerBar(song));
     return updateSong(project, songId, {
-      patterns: [...song.patterns, createPattern(id, name || `パターン${id.slice(1)}`)],
+      patterns: [...song.patterns, pattern],
     });
   }
 
@@ -322,7 +327,7 @@ const Model = (() => {
   }
 
   // ---- チャンネルグリッド操作 ----
-  // セルは patternId | null。nullは1小節（REST_CELL_COLUMNS列）の休符。
+  // セルは patternId | null。nullは1小節（columnsPerBar(song)列。曲の拍子で変わる）の休符。
   // 末尾のnullは意味を持たないため常に切り詰める。
   function trimCells(cells) {
     const out = [...cells];
@@ -475,6 +480,8 @@ const Model = (() => {
       errors.push(`チャンネルは最大${MAX_CHANNELS}本です`);
     }
     if (!TIME_SIGNATURES.includes(song.timeSignature)) {
+      // columnsPerBarはこの場合も既定拍子(4/4)へ安全側にフォールバックする（描画・再生をクラッシュさせないため）。
+      // 一方でこちらは書き出し可否のゲートなので、不正値は明示的にエラーとして拒否する
       errors.push(`拍子は${TIME_SIGNATURES.join("・")}のいずれかである必要があります`);
     }
     return errors;

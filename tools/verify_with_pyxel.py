@@ -51,6 +51,7 @@ def main(pyxres_path: str) -> None:
     assert m0 == [[0, 1, 0], [2, 3]], m0  # ch1は休符(2)→p3(3)
     assert m1 == [[4]], m1
     assert m2 == [[5, 6]], m2  # s3: 休符(12列)→p1
+    assert [list(ch) for ch in pyxel.musics[3].seqs] == []  # 空トラック
 
     pyxel.playm(0)  # 再生開始がエラーなく通ること
     print(f"PASS: pyxel.load() + playm() 正常（Pyxel {pyxel.VERSION}）")

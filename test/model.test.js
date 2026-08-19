@@ -35,6 +35,21 @@ test("columnsPerBar: 4/4は16列・3/4は12列・未定義は16列（4/4扱い�
   assert.equal(Model.columnsPerBar({}), 16);
 });
 
+test("columnsPerBar: song自体がnull、または不正なtimeSignature値でも安全に既定拍子へフォールバックする", () => {
+  assert.equal(Model.columnsPerBar(null), 16);
+  assert.equal(Model.columnsPerBar({ timeSignature: "6/8" }), 16);
+  // Object直索引によるプロトタイプ汚染（"constructor"等）でも関数などが漏れ出さない
+  assert.equal(Model.columnsPerBar({ timeSignature: "constructor" }), 16);
+  assert.equal(Model.columnsPerBar({ timeSignature: "toString" }), 16);
+});
+
+test("addPattern: 新規パターンの長さは曲の拍子（1小節の列数）に追従する", () => {
+  let p = Model.addSong(Model.createProject());
+  p = Model.updateSong(p, "s1", { timeSignature: "3/4" });
+  p = Model.addPattern(p, "s1");
+  assert.equal(p.songs[0].patterns[0].notes.length, 12);
+});
+
 test("restCell: 空白セルの長さが曲の拍子に追従する", () => {
   const song44 = { ...Model.createSong("s1"), bpm: 120, timeSignature: "4/4" };
   assert.equal(Model.restCell(song44).notes.length, 16);
@@ -258,6 +273,15 @@ test("resolveChannels: 空白セルは1小節（16列）の休符になる", () 
   assert.ok(channels[0][0].notes.every((n) => n === -1));
   assert.equal(channels[0][0].speed, 15); // bpm120基準
   assert.equal(channels[0][1].id, "p1");
+});
+
+test("resolveChannels: 3/4曲では空白セルが12列の休符になる（再生経路も拍子に追従）", () => {
+  let song = { ...Model.createSong("s1"), bpm: 120, timeSignature: "3/4" };
+  song = { ...song, patterns: [Model.createPattern("p1")] };
+  song = Model.setChannelCell(song, 0, 1, "p1"); // [null, "p1"]
+  const channels = Model.resolveChannels(song);
+  assert.equal(channels[0][0].notes.length, 12);
+  assert.ok(channels[0][0].notes.every((n) => n === -1));
 });
 
 test("allocateExport: 空白セルは曲ごとの休符サウンド1つに割り当てられる", () => {

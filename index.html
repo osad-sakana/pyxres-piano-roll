@@ -56,8 +56,10 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
     <section id="piano-roll-section">
       <h2 id="piano-roll-title">ピアノロール</h2>
       <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符</p>
-      <div id="piano-roll-scroll">
+      <div id="piano-roll-ruler-wrap">
         <canvas id="piano-roll-ruler"></canvas>
+      </div>
+      <div id="piano-roll-scroll">
         <canvas id="piano-roll"></canvas>
       </div>
     </section>
