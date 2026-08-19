@@ -218,6 +218,7 @@ const PianoRollView = (() => {
     if (isCtrlOrCmd && event.key.toLowerCase() === "a") {
       event.preventDefault();
       app.setState({ selectedCol: cols - 1, selectionAnchor: 0 });
+      scrollColIntoView(cols - 1);
       return;
     }
 
@@ -243,9 +244,10 @@ const PianoRollView = (() => {
 
     if (isCtrlOrCmd && event.key.toLowerCase() === "v") {
       event.preventDefault();
-      const range = selectionRange(state);
-      if (!clipboard || !range) return;
-      // 範囲選択中でも貼り付けはキャレットではなく選択範囲の先頭から行う
+      if (!clipboard) return;
+      // 範囲選択中でも貼り付けはキャレットではなく選択範囲の先頭から行う。
+      // キャレット未選択（パターン切替直後など）ならパターン先頭へ貼り付ける
+      const range = selectionRange(state) || { start: 0, end: 0 };
       const start = range.start;
       const width = Model.pasteWidth(pattern, start, clipboard);
       if (width === 0) return;
@@ -253,6 +255,7 @@ const PianoRollView = (() => {
         selectedCol: start,
         selectionAnchor: start + width - 1,
       });
+      scrollColIntoView(start);
       return;
     }
 
@@ -357,7 +360,8 @@ const PianoRollView = (() => {
       }
     }
     if (
-      state.selectionAnchor !== null &&
+      range &&
+      range.start !== range.end &&
       state.selectedCol !== null &&
       state.selectedCol < cols
     ) {

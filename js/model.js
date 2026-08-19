@@ -248,7 +248,11 @@ const Model = (() => {
   }
 
   // ---- 範囲コピー/ペースト ----
-  // [start, end]内で開始するノートだけを拾う（左から食い込むノートは含めない）。
+  // [start, end]内の音を拾う。範囲内で開始するノートはそのまま、範囲へ左から
+  // 食い込むノートは範囲内に残る部分だけを新しいノートとして先頭列に詰める
+  // （clearRangeが同じ境界で切り詰める挙動と対称にし、コピー→カット→貼り直しを
+  // ロスレスにするため。書き出し時はどのみち同音程の連続ノートへ展開されるので
+  // 元が1ノートか2ノートかは鳴る音に影響しない）。
   // 音価は範囲幅で切り詰める。tones/volumes/effectsはmoveNoteToと同様に対象外（列に紐づく）。
   function copyRange(pattern, start, end) {
     const width = end - start + 1;
@@ -256,9 +260,15 @@ const Model = (() => {
     const lengths = Array(width).fill(1);
     for (let col = start; col <= end; col++) {
       const span = noteSpanAt(pattern, col);
-      if (!span || span.start !== col) continue;
-      notes[col - start] = pattern.notes[col];
-      lengths[col - start] = Math.min(span.len, end - col + 1);
+      if (!span) continue;
+      if (span.start === col) {
+        notes[col - start] = pattern.notes[col];
+        lengths[col - start] = Math.min(span.len, end - col + 1);
+      } else if (col === start) {
+        // 範囲より前から始まり範囲へ食い込んでいるノートの、範囲内に残る部分
+        notes[0] = span.note;
+        lengths[0] = Math.min(span.start + span.len - start, width);
+      }
     }
     return { notes, lengths };
   }
