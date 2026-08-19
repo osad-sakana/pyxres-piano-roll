@@ -273,12 +273,20 @@ const Model = (() => {
     return { notes, lengths };
   }
 
-  // [start, end]を休符にする。範囲へ左から食い込むノートは削除せず範囲直前まで短縮する
+  // [start, end]を休符にする。範囲の外にはみ出す部分は失わない:
+  // 左から食い込むノートは範囲直前まで短縮し、右へ突き抜けるノートは
+  // end+1から始まる新しいノートとして残す（範囲の外は選択されていないため）
   function clearRange(pattern, start, end) {
     let p = pattern;
-    const leftSpan = noteSpanAt(p, start);
+    // 短縮・分割の前に元patternから取る（同じノートが両方に該当する場合があるため）
+    const leftSpan = noteSpanAt(pattern, start);
+    const rightSpan = noteSpanAt(pattern, end);
+    const tailStart = end + 1;
     if (leftSpan && leftSpan.start < start) {
       p = resizeNoteAt(p, leftSpan.start, start - leftSpan.start);
+    }
+    if (rightSpan && rightSpan.start + rightSpan.len > tailStart && tailStart < pattern.notes.length) {
+      p = placeNote(p, tailStart, rightSpan.note, rightSpan.start + rightSpan.len - tailStart);
     }
     for (let col = start; col <= end; col++) {
       if (p.notes[col] >= 0) p = deleteNoteAt(p, col);
