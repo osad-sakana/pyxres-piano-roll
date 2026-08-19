@@ -247,6 +247,50 @@ const Model = (() => {
     return placeNote(removed, toCol, value, len);
   }
 
+  // ---- 範囲コピー/ペースト ----
+  // [start, end]内で開始するノートだけを拾う（左から食い込むノートは含めない）。
+  // 音価は範囲幅で切り詰める。tones/volumes/effectsはmoveNoteToと同様に対象外（列に紐づく）。
+  function copyRange(pattern, start, end) {
+    const width = end - start + 1;
+    const notes = Array(width).fill(-1);
+    const lengths = Array(width).fill(1);
+    for (let col = start; col <= end; col++) {
+      const span = noteSpanAt(pattern, col);
+      if (!span || span.start !== col) continue;
+      notes[col - start] = pattern.notes[col];
+      lengths[col - start] = Math.min(span.len, end - col + 1);
+    }
+    return { notes, lengths };
+  }
+
+  // [start, end]を休符にする。範囲へ左から食い込むノートは削除せず範囲直前まで短縮する
+  function clearRange(pattern, start, end) {
+    let p = pattern;
+    const leftSpan = noteSpanAt(p, start);
+    if (leftSpan && leftSpan.start < start) {
+      p = resizeNoteAt(p, leftSpan.start, start - leftSpan.start);
+    }
+    for (let col = start; col <= end; col++) {
+      if (p.notes[col] >= 0) p = deleteNoteAt(p, col);
+    }
+    return p;
+  }
+
+  // clip（copyRangeの戻り値形式）をcolから貼り付ける。既存ノートは上書きし、
+  // パターン末尾を超える分は切り詰める（パターン長は変えない）
+  function pasteRange(pattern, col, clip) {
+    if (!clip || !clip.notes || clip.notes.length === 0) return pattern;
+    if (col < 0 || col >= pattern.notes.length) return pattern;
+    const width = Math.min(clip.notes.length, pattern.notes.length - col);
+    let p = clearRange(pattern, col, col + width - 1);
+    for (let i = 0; i < width; i++) {
+      if (clip.notes[i] < 0) continue;
+      const len = Math.min(clip.lengths[i] || 1, width - i);
+      p = placeNote(p, col + i, clip.notes[i], len);
+    }
+    return p;
+  }
+
   // 音価を列単位の連続ノートへ分割展開する（書き出し・再生用）。
   // pyxresに音価の概念はないため、長さNのノートは同音程N列になる。
   function expandPattern(pattern) {
@@ -685,6 +729,9 @@ const Model = (() => {
     deleteNoteAt,
     resizeNoteAt,
     moveNoteTo,
+    copyRange,
+    clearRange,
+    pasteRange,
     expandPattern,
     resizePattern,
     expandProperty,
