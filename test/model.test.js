@@ -269,7 +269,7 @@ test("resolveChannels: 空白セルは1小節（16列）の休符になる", () 
   song = Model.setChannelCell(song, 0, 1, "p1"); // [null, "p1"]
   const channels = Model.resolveChannels(song);
   assert.equal(channels[0].length, 2);
-  assert.equal(channels[0][0].notes.length, Model.REST_CELL_COLUMNS);
+  assert.equal(channels[0][0].notes.length, 16);
   assert.ok(channels[0][0].notes.every((n) => n === -1));
   assert.equal(channels[0][0].speed, 15); // bpm120基準
   assert.equal(channels[0][1].id, "p1");
@@ -297,7 +297,7 @@ test("allocateExport: 空白セルは曲ごとの休符サウンド1つに割り
   assert.equal(result.ok, true);
   // 登場順: 休符(ch0の先頭) → p1
   assert.ok(result.sounds[0].notes.every((n) => n === -1));
-  assert.equal(result.sounds[0].notes.length, Model.REST_CELL_COLUMNS);
+  assert.equal(result.sounds[0].notes.length, 16);
   assert.deepEqual(result.sounds[1].notes, [24]);
   // 複数の空白セルが同じ休符index(0)を共有する
   assert.deepEqual(result.musics[0].seqs, [[0, 1], [0, 0, 1]]);

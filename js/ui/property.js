@@ -61,6 +61,13 @@ const PropertyPanel = (() => {
     app.updateProject((p) => Model.updatePattern(p, state.songId, pattern.id, { [field]: values }));
   }
 
+  // パターン長を曲の拍子基準の小節数表示に変換する（例: 3小節、2小節+4列）
+  function barsLabel(length, columnsPerBar) {
+    const bars = Math.floor(length / columnsPerBar);
+    const rest = length % columnsPerBar;
+    return rest === 0 ? `${bars}小節` : `${bars}小節+${rest}列`;
+  }
+
   function clampInt(input, min, max, fallback) {
     const value = Number.parseInt(input.value, 10);
     if (Number.isNaN(value)) return fallback;
@@ -136,11 +143,12 @@ const PropertyPanel = (() => {
     els.tone.disabled = els.volume.disabled = els.effect.disabled = needCol;
     const song = app.currentSong();
     const speedInfo = song ? `書き出しspeed ≈ ${Model.patternSpeed(song, pattern)}` : "";
+    const barsInfo = song ? `／ ${barsLabel(pattern.notes.length, Model.columnsPerBar(song))}` : "";
     els.colInfo.textContent = noteMode
       ? col !== null
         ? `編集対象: ${col + 1}列目`
         : "列を選択してください"
-      : speedInfo;
+      : `${speedInfo} ${barsInfo}`;
   }
 
   return { init, render };

@@ -18,7 +18,6 @@ const PianoRollView = (() => {
   let ctx = null;
   let rulerCanvas = null;
   let rulerCtx = null;
-  let rulerWrap = null;
   // ドラッグ状態: { mode: "move" | "resize", ... }
   let drag = null;
   // 直近に入力した音程。休符列でのEnter入力に使う
@@ -365,23 +364,25 @@ const PianoRollView = (() => {
     }
   }
 
+  // 横スクロールのみルーラーへ同期する。rulerWrapはoverflow:hiddenでスクロールバーを
+  // 持たないため、scrollLeft代入だとscroll幅の差でクランプされズレる場合がある。
+  // transformなら常にscrollと同じ量だけ動かせる
+  function syncRulerScroll() {
+    const scroll = document.getElementById("piano-roll-scroll");
+    rulerCanvas.style.transform = `translateX(${-scroll.scrollLeft}px)`;
+  }
+
   function init(appRef) {
     app = appRef;
     canvas = document.getElementById("piano-roll");
     ctx = canvas.getContext("2d");
     rulerCanvas = document.getElementById("piano-roll-ruler");
     rulerCtx = rulerCanvas.getContext("2d");
-    rulerWrap = document.getElementById("piano-roll-ruler-wrap");
     canvas.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("keydown", onKeyDown);
-    // 横スクロールのみルーラーへ同期（縦はルーラーをスクロール領域の外に置いて回避）
-    document
-      .getElementById("piano-roll-scroll")
-      .addEventListener("scroll", (e) => {
-        rulerWrap.scrollLeft = e.target.scrollLeft;
-      });
+    document.getElementById("piano-roll-scroll").addEventListener("scroll", syncRulerScroll);
   }
 
   function render(state) {
@@ -393,6 +394,7 @@ const PianoRollView = (() => {
     const colors = rollColors(); // draw/drawRulerで使い回し、getComputedStyle呼び出しを1回に抑える
     draw(state, colors);
     drawRuler(colors);
+    syncRulerScroll(); // パターン切替でcanvas幅が変わってもスクロール位置を保つ
   }
 
   return { init, render };

@@ -36,7 +36,6 @@ const Model = (() => {
   const TIME_SIGNATURES = ["4/4", "3/4"];
   const DEFAULT_TIME_SIGNATURE = "4/4";
   const BAR_COLUMNS = { "4/4": 16, "3/4": 12 }; // 1小節=拍数×4列（1拍=4分音符=4列で固定）
-  const REST_CELL_COLUMNS = BAR_COLUMNS[DEFAULT_TIME_SIGNATURE]; // 互換用の既定値（4/4の1小節長）
 
   // 曲の拍子から1小節あたりの列数を返す（唯一の真実の源。UI側で16/12を直書きしない）。
   // songがnull/未指定、またはtimeSignatureが欠損・不正な値の場合は既定拍子(4/4)を返す
@@ -736,7 +735,6 @@ const Model = (() => {
     removeChannelCell,
     restCell,
     resolveChannels,
-    REST_CELL_COLUMNS,
     bpmToSpeed,
     patternSpeed,
     transposeNote,
