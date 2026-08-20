@@ -25,6 +25,9 @@
   --roll-row-alt: #ebeae4;
   --roll-grid: #d2e0d2;
   --roll-grid-strong: #94b894;
+  --roll-bar-line: #4a7a4a;
+  --roll-ruler-bg: #e8e6df;
+  --roll-ruler-label: #4a4740;
   --roll-c-line: #b4b1a9;
   --roll-selected-col: rgba(47, 95, 168, 0.14);
   --roll-note: #ff9224;
@@ -59,6 +62,9 @@
   --roll-row-alt: #1f2027;
   --roll-grid: #2a3330;
   --roll-grid-strong: #3f5a50;
+  --roll-bar-line: #6fae7a;
+  --roll-ruler-bg: #1c1e24;
+  --roll-ruler-label: #b7bac6;
   --roll-c-line: #4a4d59;
   --roll-selected-col: rgba(79, 193, 255, 0.12);
   --roll-note: #ffa030;
@@ -197,6 +203,7 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 .bpm-label input { width: 56px; }
 .transpose-label { display: flex; align-items: center; gap: 4px; font-weight: normal; }
 .transpose-label input { width: 48px; }
+.timesig-label { display: flex; align-items: center; gap: 4px; font-weight: normal; }
 .lane-row { display: flex; align-items: center; gap: 4px; min-height: 30px; }
 .lane-label { width: 34px; color: var(--text-dim); flex-shrink: 0; font-size: 11px; }
 .lane-blocks {
@@ -264,12 +271,20 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 /* ---- PianoRoll ---- */
 #piano-roll-section { flex: 1; display: flex; flex-direction: column; min-height: 160px; }
 #piano-roll-hint { margin: 0 0 6px; font-size: 11px; color: var(--text-dim); }
+#piano-roll-ruler-wrap {
+  overflow: hidden;
+  background: var(--roll-ruler-bg);
+  border: 1px solid var(--border-strong);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+}
+#piano-roll-ruler { display: block; }
 #piano-roll-scroll {
   flex: 1;
   min-height: 140px;
   overflow: auto;
   border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  border-radius: 0 0 4px 4px;
   background: var(--roll-bg);
 }
 #piano-roll { display: block; cursor: crosshair; }

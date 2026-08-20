@@ -52,3 +52,4 @@ description: 内部プロジェクトフォーマット（Project/Song/Pattern�
 | v3 | 音価（lengths）追加 |
 | v4 | 曲にtranspose追加 |
 | v5 | channelsをグリッド化（null=空白セル許容。形は互換） |
+| v6 | 曲にtimeSignature追加（4/4=16列・3/4=12列。空白セルの長さが追従） |
