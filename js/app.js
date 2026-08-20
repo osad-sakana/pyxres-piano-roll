@@ -30,6 +30,7 @@ const App = (() => {
       songId,
       patternId: firstPatternId(project, songId),
       selectedCol: null,
+      selectionAnchor: null, // 範囲選択の起点列。nullなら単一列選択
       propertyMode: "bulk", // "bulk" = 全体一括 / "note" = ノート個別（§4.2）
       playing: null, // null | "pattern" | "song"
     };
@@ -43,7 +44,7 @@ const App = (() => {
 
   // UI状態のみの更新（projectを触らない）
   function setState(patch) {
-    state = { ...state, ...patch };
+    state = { ...state, ...Selection.normalizePatch(patch, state.patternId) };
     render();
   }
 
@@ -54,7 +55,7 @@ const App = (() => {
       ...project,
       meta: { ...project.meta, modified: new Date().toISOString() },
     };
-    state = { ...state, ...patch, project: stamped };
+    state = { ...state, ...Selection.normalizePatch(patch, state.patternId), project: stamped };
     autosave(stamped);
     render();
   }
@@ -67,6 +68,7 @@ const App = (() => {
       songId,
       patternId: firstPatternId(project, songId),
       selectedCol: null,
+      selectionAnchor: null,
       propertyMode: "bulk",
       playing: null,
     };

@@ -269,6 +269,91 @@ const Model = (() => {
     return placeNote(removed, toCol, value, len);
   }
 
+  // ---- 範囲コピー/ペースト ----
+  // [start, end]内の音を拾う。範囲内で開始するノートはそのまま、範囲へ左から
+  // 食い込むノートは範囲内に残る部分だけを新しいノートとして先頭列に詰める
+  // （clearRangeが同じ境界で切り詰める挙動と対称にし、コピー→カット→貼り直しを
+  // ロスレスにするため。書き出し時はどのみち同音程の連続ノートへ展開されるので
+  // 元が1ノートか2ノートかは鳴る音に影響しない）。
+  // 音価は範囲幅で切り詰める。tones/volumes/effectsはmoveNoteToと同様に対象外（列に紐づく）。
+  function copyRange(pattern, start, end) {
+    const width = end - start + 1;
+    const notes = Array(width).fill(-1);
+    const lengths = Array(width).fill(1);
+    for (let col = start; col <= end; col++) {
+      const span = noteSpanAt(pattern, col);
+      if (!span) continue;
+      if (span.start === col) {
+        notes[col - start] = pattern.notes[col];
+        lengths[col - start] = Math.min(span.len, end - col + 1);
+      } else if (col === start) {
+        // 範囲より前から始まり範囲へ食い込んでいるノートの、範囲内に残る部分
+        notes[0] = span.note;
+        lengths[0] = Math.min(span.start + span.len - start, width);
+      }
+    }
+    return { notes, lengths };
+  }
+
+  // ノート個別編集済み（列数と同長）の属性のみ、列fromColの値を列toColへ引き継ぐ。
+  // expandPatternはノートの開始列の値をスパン全体へ広げるため、ノートが分割されて
+  // 新しい開始列ができるとき引き継がないと、その列にたまたま入っていた値で鳴ってしまう
+  function carryColProps(pattern, fromCol, toCol) {
+    const carry = (field) => {
+      const arr = pattern[field];
+      if (arr.length !== pattern.notes.length) return arr; // 循環配列は全列同値なので不要
+      return arr.map((v, i) => (i === toCol ? arr[fromCol] : v));
+    };
+    return { ...pattern, tones: carry("tones"), volumes: carry("volumes"), effects: carry("effects") };
+  }
+
+  // [start, end]を休符にする。範囲の外にはみ出す部分は失わない:
+  // 左から食い込むノートは範囲直前まで短縮し、右へ突き抜けるノートは
+  // end+1から始まる新しいノートとして残す（範囲の外は選択されていないため）
+  function clearRange(pattern, start, end) {
+    let p = pattern;
+    // 短縮・分割の前に元patternから取る（同じノートが両方に該当する場合があるため）
+    const leftSpan = noteSpanAt(pattern, start);
+    const rightSpan = noteSpanAt(pattern, end);
+    const tailStart = end + 1;
+    if (leftSpan && leftSpan.start < start) {
+      p = resizeNoteAt(p, leftSpan.start, start - leftSpan.start);
+      // startは休符になるが、後でpasteRangeが同じ列へ新しいノートを置いたとき
+      // 元の音色で鳴るよう種をまいておく（休符列のtone等は鳴らないので副作用はない）
+      p = carryColProps(p, leftSpan.start, start);
+    }
+    if (rightSpan && rightSpan.start + rightSpan.len > tailStart && tailStart < pattern.notes.length) {
+      p = placeNote(p, tailStart, rightSpan.note, rightSpan.start + rightSpan.len - tailStart);
+      p = carryColProps(p, rightSpan.start, tailStart);
+    }
+    for (let col = start; col <= end; col++) {
+      if (p.notes[col] >= 0) p = deleteNoteAt(p, col);
+    }
+    return p;
+  }
+
+  // pasteRangeが実際に書き込む列数を返す（0ならno-op）。UIが貼り付け後の
+  // 選択範囲を計算する際にも同じクランプ規則を使えるよう公開する
+  function pasteWidth(pattern, col, clip) {
+    if (!clip || !clip.notes || clip.notes.length === 0) return 0;
+    if (col < 0 || col >= pattern.notes.length) return 0;
+    return Math.min(clip.notes.length, pattern.notes.length - col);
+  }
+
+  // clip（copyRangeの戻り値形式）をcolから貼り付ける。既存ノートは上書きし、
+  // パターン末尾を超える分は切り詰める（パターン長は変えない）
+  function pasteRange(pattern, col, clip) {
+    const width = pasteWidth(pattern, col, clip);
+    if (width === 0) return pattern;
+    let p = clearRange(pattern, col, col + width - 1);
+    for (let i = 0; i < width; i++) {
+      if (clip.notes[i] < 0) continue;
+      const len = Math.min(clip.lengths[i] || 1, width - i);
+      p = placeNote(p, col + i, clip.notes[i], len);
+    }
+    return p;
+  }
+
   // 音価を列単位の連続ノートへ分割展開する（書き出し・再生用）。
   // pyxresに音価の概念はないため、長さNのノートは同音程N列になる。
   function expandPattern(pattern) {
@@ -725,6 +810,10 @@ const Model = (() => {
     deleteNoteAt,
     resizeNoteAt,
     moveNoteTo,
+    copyRange,
+    clearRange,
+    pasteRange,
+    pasteWidth,
     expandPattern,
     resizePattern,
     expandProperty,

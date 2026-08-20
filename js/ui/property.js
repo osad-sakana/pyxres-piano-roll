@@ -92,7 +92,7 @@ const PropertyPanel = (() => {
       const length = clampInt(els.length, 1, 999, pattern.notes.length);
       app.updateProject(
         (p) => Model.updatePattern(p, songId, pattern.id, Model.resizePattern(pattern, length)),
-        { selectedCol: null }
+        { selectedCol: null, selectionAnchor: null }
       );
     });
     els.rate.addEventListener("change", () => {

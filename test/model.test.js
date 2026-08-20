@@ -521,6 +521,178 @@ test("setNoteAt/resizePattern: 従来通り（パターン単体操作）", () =
   assert.equal(longer.notes[19], -1);
 });
 
+// ---- 範囲コピー/ペースト（Issue #4） ----
+
+test("copyRange: 範囲内で開始するノートだけを拾い、音価は範囲幅で切り詰める", () => {
+  const pat = lengthsFixture(); // [24(len3), -, -, 28]
+  const clip = Model.copyRange(pat, 0, 3);
+  assert.deepEqual(clip.notes, [24, -1, -1, 28]);
+  assert.equal(clip.lengths[0], 3); // 範囲内に収まるのでそのまま
+});
+
+test("copyRange: 範囲へ左から食い込むノートは、範囲内に残る部分を先頭列のノートとして拾う", () => {
+  // clearRangeが同じ境界で切り詰める挙動と対称にし、コピー→カット→貼り直しをロスレスにするため
+  const pat = lengthsFixture(); // 24(len3)がcol0〜2を占有
+  const clip = Model.copyRange(pat, 1, 3);
+  assert.deepEqual(clip.notes, [24, -1, 28]);
+  assert.equal(clip.lengths[0], 2); // col1〜2の2列分が範囲内に残る
+});
+
+test("copyRange: 範囲末尾でノートの音価が切り詰められる", () => {
+  const pat = lengthsFixture(); // 24(len3)がcol0〜2
+  const clip = Model.copyRange(pat, 0, 1); // col0〜1のみ選択
+  assert.equal(clip.notes[0], 24);
+  assert.equal(clip.lengths[0], 2); // 3 → 2へ切り詰め
+});
+
+test("copyRange: 全休符範囲は全て-1のclipになる", () => {
+  const pat = Model.createPattern("p1");
+  const clip = Model.copyRange(pat, 5, 8);
+  assert.deepEqual(clip.notes, [-1, -1, -1, -1]);
+});
+
+test("clearRange: 範囲内で開始するノートを削除する", () => {
+  const pat = lengthsFixture();
+  const cleared = Model.clearRange(pat, 0, 3);
+  assert.deepEqual(cleared.notes.slice(0, 4), [-1, -1, -1, -1]);
+});
+
+test("clearRange: 範囲へ左から食い込むノートは削除せず範囲直前まで短縮する", () => {
+  const pat = lengthsFixture(); // 24(len3)がcol0〜2
+  const cleared = Model.clearRange(pat, 1, 3);
+  assert.equal(cleared.notes[0], 24);
+  assert.equal(cleared.lengths[0], 1); // col1手前までに短縮
+  assert.equal(cleared.notes[3], -1); // 28は削除される
+});
+
+test("copyRange+clearRange+pasteRange: 保持音の途中をカット→同位置へ貼り直すと音価の合計が保たれる（HIGH再発防止）", () => {
+  // undoが無いため、ノートの開始列を含まない範囲でもCtrl+X→Ctrl+Vで消えてはいけない
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 24, 16); // 1曲まるごと1ノート
+  const clip = Model.copyRange(pat, 8, 15); // ノートの開始列(col0)を含まない範囲
+  const cut = Model.clearRange(pat, 8, 15);
+  const pasted = Model.pasteRange(cut, 8, clip);
+  const totalCovered = pasted.notes.reduce(
+    (sum, n, i) => sum + (n >= 0 ? pasted.lengths[i] : 0),
+    0
+  );
+  assert.equal(totalCovered, 16); // 分割されても音価の合計は元と同じ
+  assert.equal(pasted.notes[0], 24);
+  assert.equal(pasted.notes[8], 24);
+});
+
+test("clearRange: 範囲の両端をまたぐノートは、範囲外に残る部分（前後とも）を保つ", () => {
+  // 選択されていないcol5〜7を破壊しない（undoが無いための安全性要件）
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 24, 8); // col0〜7を占有
+  const cleared = Model.clearRange(pat, 2, 4);
+  assert.equal(cleared.notes[0], 24);
+  assert.equal(cleared.lengths[0], 2); // col2手前までに短縮
+  assert.equal(cleared.notes[5], 24); // col5から新しいノートとして残る
+  assert.equal(cleared.lengths[5], 3); // col5〜7の3列分
+});
+
+test("clearRange: 範囲内で開始し範囲外まで伸びるノートは、はみ出した尾を保つ", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 6, 24, 10); // col6〜15を占有
+  const cleared = Model.clearRange(pat, 6, 9);
+  assert.equal(cleared.notes[6], -1); // 範囲内の開始部分は削除される
+  assert.equal(cleared.notes[10], 24); // 範囲外の尾はcol10から残る
+  assert.equal(cleared.lengths[10], 6); // col10〜15の6列分
+});
+
+test("clearRange: パターン末尾ぴったりで終わる範囲では尾を作らない", () => {
+  const pat = lengthsFixture(); // 24(len3)がcol0〜2、パターン長16
+  const cleared = Model.clearRange(pat, 0, 15); // 末尾まで選択
+  assert.deepEqual(cleared.notes, Array(16).fill(-1));
+});
+
+test("copyRange+clearRange+pasteRange: 範囲の両端をまたぐノートをカット→同位置へ貼り直すと音価の合計が保たれる（HIGH再発防止）", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 24, 16); // 1曲まるごと1ノート
+  const clip = Model.copyRange(pat, 4, 7); // ノートの開始列(col0)も末尾も含まない範囲
+  const cut = Model.clearRange(pat, 4, 7);
+  const pasted = Model.pasteRange(cut, 4, clip);
+  const totalCovered = pasted.notes.reduce(
+    (sum, n, i) => sum + (n >= 0 ? pasted.lengths[i] : 0),
+    0
+  );
+  assert.equal(totalCovered, 16); // 分割されても音価の合計は元と同じ
+});
+
+test("clearRange+pasteRange: 保持音が分割されても、ノート個別編集したtoneが引き継がれる（HIGH再発防止）", () => {
+  // expandPatternはノートの開始列の値をスパン全体へ広げるため、分割で新しい開始列が
+  // できたときに元の音色を引き継がないと、cut→同位置貼り直しで鳴る音が変わってしまう
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 24, 8); // col0〜7を占有
+  pat = Model.expandProperty(pat, "tones");
+  pat = { ...pat, tones: pat.tones.map((v, i) => (i === 0 ? 3 : v)) };
+  const clip = Model.copyRange(pat, 2, 4);
+  const cut = Model.clearRange(pat, 2, 4);
+  const pasted = Model.pasteRange(cut, 2, clip);
+  const expanded = Model.expandPattern(pasted);
+  assert.deepEqual(expanded.tones.slice(0, 8), Array(8).fill(3));
+});
+
+test("pasteRange: 貼り付け先の既存ノートを上書きする", () => {
+  let pat = lengthsFixture();
+  const clip = { notes: [36, -1], lengths: [2, 1] };
+  pat = Model.pasteRange(pat, 3, clip); // col3の28を上書き
+  assert.equal(pat.notes[3], 36);
+  assert.equal(pat.lengths[3], 2);
+});
+
+test("pasteRange: 休符を含むclipでも例外にならない", () => {
+  const pat = Model.createPattern("p1");
+  const clip = { notes: [-1, 24, -1], lengths: [1, 1, 1] };
+  const pasted = Model.pasteRange(pat, 0, clip);
+  assert.equal(pasted.notes[0], -1);
+  assert.equal(pasted.notes[1], 24);
+  assert.equal(pasted.notes[2], -1);
+});
+
+test("pasteRange: パターン末尾を超える分は切り詰め、パターン長は変わらない", () => {
+  const pat = Model.createPattern("p1"); // 長さ16
+  const clip = { notes: [24, 26, 28], lengths: [1, 1, 1] };
+  const pasted = Model.pasteRange(pat, 15, clip); // col15の1列しか残っていない
+  assert.equal(pasted.notes.length, 16);
+  assert.equal(pasted.notes[15], 24);
+});
+
+test("pasteRange: 空clip・範囲外colはパターンを変えない", () => {
+  const pat = lengthsFixture();
+  assert.deepEqual(Model.pasteRange(pat, 0, null), pat);
+  assert.deepEqual(Model.pasteRange(pat, 0, { notes: [], lengths: [] }), pat);
+  assert.deepEqual(Model.pasteRange(pat, 99, { notes: [24], lengths: [1] }), pat);
+});
+
+test("pasteRange: 同じ位置への貼り直しで音価が選択幅に切り詰められる", () => {
+  let pat = lengthsFixture(); // 24(len3)
+  const clip = Model.copyRange(pat, 0, 1); // 幅2で切り詰めたclip
+  pat = Model.pasteRange(pat, 0, clip);
+  assert.equal(pat.lengths[0], 2); // 3 → 2へ縮む
+});
+
+test("copyRange/clearRange/pasteRange: 元パターンを破壊しない", () => {
+  const pat = lengthsFixture();
+  const before = JSON.parse(JSON.stringify(pat));
+  Model.copyRange(pat, 0, 3);
+  Model.clearRange(pat, 0, 3);
+  Model.pasteRange(pat, 0, { notes: [24], lengths: [1] });
+  assert.deepEqual(pat.notes, before.notes);
+  assert.deepEqual(pat.lengths, before.lengths);
+});
+
+test("copyRange/clearRange/pasteRange: 結果はvalidatePatternを通る", () => {
+  const pat = lengthsFixture();
+  const clip = Model.copyRange(pat, 0, 3);
+  const cleared = Model.clearRange(pat, 0, 3);
+  const pasted = Model.pasteRange(pat, 0, clip);
+  for (const p of [cleared, pasted]) {
+    assert.deepEqual(Model.validatePattern(p), []);
+  }
+});
+
 test("duplicatePatternInChannel: 同じパターンをチャンネルの右隣へ挿入する", () => {
   let p = baseProject();
   p = Model.addPattern(p, "s1"); // p2

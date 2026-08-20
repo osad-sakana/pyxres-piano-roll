@@ -55,7 +55,7 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
     </section>
     <section id="piano-roll-section">
       <h2 id="piano-roll-title">ピアノロール</h2>
-      <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符</p>
+      <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符 ／ Shift+←→・Shift+ドラッグ: 範囲選択 ／ Ctrl(Cmd)+C/X/V: コピー/カット/ペースト</p>
       <div id="piano-roll-ruler-wrap">
         <canvas id="piano-roll-ruler"></canvas>
       </div>
@@ -114,6 +114,9 @@ pyxel.playm(0, loop=True)  # 書き出しダイアログで割り当てたスロ
     <li><kbd>←</kbd><kbd>→</kbd>: 選択列を左右に移動</li>
     <li><kbd>↑</kbd><kbd>↓</kbd>: 選択列のノートを半音ずつ移調</li>
     <li><kbd>Enter</kbd>: 休符列なら直前に入力した音程で配置、音符列なら休符に変更</li>
+    <li><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> / <kbd>Shift</kbd>+クリック・ドラッグ: 範囲選択</li>
+    <li><kbd>Ctrl(Cmd)</kbd>+<kbd>A</kbd>: 全列を選択 ／ <kbd>Esc</kbd>: 選択解除</li>
+    <li><kbd>Ctrl(Cmd)</kbd>+<kbd>C</kbd>/<kbd>X</kbd>/<kbd>V</kbd>: 選択範囲のコピー/カット/ペースト（tone/volume/effectは対象外）</li>
   </ul>
   <div class="dialog-buttons">
     <button id="btn-close-help">閉じる</button>
@@ -121,6 +124,7 @@ pyxel.playm(0, loop=True)  # 書き出しダイアログで割り当てたスロ
 </dialog>
 
 <script src="js/model.js"></script>
+<script src="js/selection.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/exporter.js"></script>

@@ -18,10 +18,12 @@ const PianoRollView = (() => {
   let ctx = null;
   let rulerCanvas = null;
   let rulerCtx = null;
-  // ドラッグ状態: { mode: "move" | "resize", ... }
+  // ドラッグ状態: { mode: "move" | "resize" | "select", ... }
   let drag = null;
   // 直近に入力した音程。休符列でのEnter入力に使う
   let lastNote = 24;
+  // コピー範囲（Model.copyRangeの戻り値形式）。アプリ内一時状態でOSクリップボードとは連携しない
+  let clipboard = null;
 
   function noteName(value) {
     return `${NOTE_NAMES[value % 12]}${Math.floor(value / 12)}`;
@@ -55,6 +57,16 @@ const PianoRollView = (() => {
     return { cell, span, onEdge: x >= edgeX - EDGE_W };
   }
 
+  // 現在の選択範囲を{start, end}で返す（単一列選択ならstart===end）。未選択ならnull
+  function selectionRange(state) {
+    if (state.selectedCol === null) return null;
+    if (state.selectionAnchor === null) return { start: state.selectedCol, end: state.selectedCol };
+    return {
+      start: Math.min(state.selectionAnchor, state.selectedCol),
+      end: Math.max(state.selectionAnchor, state.selectedCol),
+    };
+  }
+
   function previewNote(pattern, col, note) {
     const tone = pattern.tones[col % pattern.tones.length];
     const volume = pattern.volumes[col % pattern.volumes.length];
@@ -75,17 +87,24 @@ const PianoRollView = (() => {
 
   function place(col, value, len = null) {
     lastNote = value;
-    applyPattern(Model.placeNote(app.currentPattern(), col, value, len), { selectedCol: col });
+    applyPattern(Model.placeNote(app.currentPattern(), col, value, len), {
+      selectedCol: col,
+      selectionAnchor: null,
+    });
   }
 
   function remove(col) {
-    applyPattern(Model.deleteNoteAt(app.currentPattern(), col), { selectedCol: col });
+    applyPattern(Model.deleteNoteAt(app.currentPattern(), col), {
+      selectedCol: col,
+      selectionAnchor: null,
+    });
   }
 
   function move(fromCol, toCol, value) {
     lastNote = value;
     applyPattern(Model.moveNoteTo(app.currentPattern(), fromCol, toCol, value), {
       selectedCol: toCol,
+      selectionAnchor: null,
     });
   }
 
@@ -99,16 +118,27 @@ const PianoRollView = (() => {
     const { cell, span, onEdge } = hitAt(event, pattern);
     if (!cell) return;
 
+    if (event.shiftKey) {
+      // 範囲選択: ノート上でも移動・削除にせず、現在の選択起点から範囲を伸縮する
+      const state = app.getState();
+      const anchor = state.selectionAnchor !== null
+        ? state.selectionAnchor
+        : state.selectedCol !== null ? state.selectedCol : cell.col;
+      drag = { mode: "select", anchor };
+      app.setState({ selectedCol: cell.col, selectionAnchor: anchor });
+      return;
+    }
+
     if (span && onEdge) {
       // 右端: 音価の変更モード
       drag = { mode: "resize", start: span.start, len: span.len };
-      app.setState({ selectedCol: span.start });
+      app.setState({ selectedCol: span.start, selectionAnchor: null });
       return;
     }
     if (span) {
       // ノート上: mouseupまで動かなければ削除、動けば移動
       drag = { mode: "move", col: span.start, note: span.note, moved: false, pendingDelete: true };
-      app.setState({ selectedCol: span.start });
+      app.setState({ selectedCol: span.start, selectionAnchor: null });
       return;
     }
     // 空きセル: 配置（覆っていたノートは切り詰め）。
@@ -125,6 +155,16 @@ const PianoRollView = (() => {
     if (!drag) {
       const { span, onEdge } = hitAt(event, pattern);
       canvas.style.cursor = span && onEdge ? "ew-resize" : "crosshair";
+      return;
+    }
+
+    if (drag.mode === "select") {
+      // ロール外へ縦にはみ出しても列だけは追従させる（cellAtは行範囲外でnullを返すため使わない）
+      const { x } = pointAt(event);
+      const rawCol = Math.floor((x - KEY_W) / COL_W);
+      const col = Math.min(pattern.notes.length - 1, Math.max(0, rawCol));
+      if (col === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
+      app.setState({ selectedCol: col, selectionAnchor: drag.anchor });
       return;
     }
 
@@ -176,20 +216,78 @@ const PianoRollView = (() => {
     if (!pattern) return;
     const state = app.getState();
     const cols = pattern.notes.length;
+    const isCtrlOrCmd = event.ctrlKey || event.metaKey;
 
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    if (isCtrlOrCmd && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      app.setState({ selectedCol: cols - 1, selectionAnchor: 0 });
+      scrollColIntoView(cols - 1);
+      return;
+    }
+
+    if (isCtrlOrCmd && event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      const range = selectionRange(state);
+      if (range) clipboard = Model.copyRange(pattern, range.start, range.end);
+      return;
+    }
+
+    if (isCtrlOrCmd && event.key.toLowerCase() === "x") {
+      event.preventDefault();
+      const range = selectionRange(state);
+      if (!range) return;
+      clipboard = Model.copyRange(pattern, range.start, range.end);
+      // キャレットを範囲先頭へ戻す（そのまま貼り直せば元の位置に戻せるように）
+      applyPattern(Model.clearRange(pattern, range.start, range.end), {
+        selectedCol: range.start,
+        selectionAnchor: null,
+      });
+      return;
+    }
+
+    if (isCtrlOrCmd && event.key.toLowerCase() === "v") {
+      event.preventDefault();
+      if (!clipboard) return;
+      // 範囲選択中でも貼り付けはキャレットではなく選択範囲の先頭から行う。
+      // キャレット未選択（パターン切替直後など）ならパターン先頭へ貼り付ける
+      const range = selectionRange(state) || { start: 0, end: 0 };
+      const start = range.start;
+      const width = Model.pasteWidth(pattern, start, clipboard);
+      if (width === 0) return;
+      applyPattern(Model.pasteRange(pattern, start, clipboard), {
+        selectedCol: start,
+        selectionAnchor: start + width - 1,
+      });
+      scrollColIntoView(start);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      app.setState({ selectionAnchor: null });
+      return;
+    }
+
+    if (!isCtrlOrCmd && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
       event.preventDefault();
       const delta = event.key === "ArrowLeft" ? -1 : 1;
       const current = state.selectedCol !== null ? state.selectedCol : delta > 0 ? -1 : cols;
       const col = Math.min(cols - 1, Math.max(0, current + delta));
-      app.setState({ selectedCol: col });
+      if (event.shiftKey) {
+        const anchor = state.selectionAnchor !== null
+          ? state.selectionAnchor
+          : state.selectedCol !== null ? state.selectedCol : col;
+        app.setState({ selectedCol: col, selectionAnchor: anchor });
+      } else {
+        app.setState({ selectedCol: col, selectionAnchor: null });
+      }
       scrollColIntoView(col);
       return;
     }
 
-    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      event.preventDefault();
-      if (state.selectedCol === null) return;
+    if (!isCtrlOrCmd && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault(); // Shift併用時もページスクロールはさせない（範囲選択の対象外なだけ）
+      if (event.shiftKey || state.selectedCol === null) return;
       const span = Model.noteSpanAt(pattern, state.selectedCol);
       if (!span) return; // 休符列は対象外
       const delta = event.key === "ArrowUp" ? 1 : -1;
@@ -200,9 +298,9 @@ const PianoRollView = (() => {
       return;
     }
 
-    if (event.key === "Enter") {
+    if (!isCtrlOrCmd && event.key === "Enter") {
       event.preventDefault();
-      if (state.selectedCol === null) return;
+      if (event.shiftKey || state.selectedCol === null) return;
       const span = Model.noteSpanAt(pattern, state.selectedCol);
       if (!span) {
         // 休符列: 直近に入力した音程で配置
@@ -257,8 +355,22 @@ const PianoRollView = (() => {
       }
     }
 
-    // 選択列のハイライト
-    if (state.selectedCol !== null && state.selectedCol < cols) {
+    // 選択範囲のハイライト。範囲選択中はcaret（現在位置）を重ね塗りして濃く見せる
+    const range = selectionRange(state);
+    if (range) {
+      const start = Math.max(0, range.start);
+      const end = Math.min(cols - 1, range.end);
+      if (start <= end) {
+        ctx.fillStyle = colors.selCol;
+        ctx.fillRect(KEY_W + start * COL_W, 0, (end - start + 1) * COL_W, canvas.height);
+      }
+    }
+    if (
+      range &&
+      range.start !== range.end &&
+      state.selectedCol !== null &&
+      state.selectedCol < cols
+    ) {
       ctx.fillStyle = colors.selCol;
       ctx.fillRect(KEY_W + state.selectedCol * COL_W, 0, COL_W, canvas.height);
     }
