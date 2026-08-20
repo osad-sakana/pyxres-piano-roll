@@ -41,9 +41,22 @@ project = Model.updatePattern(project, "s2", "p1", {
 });
 project = Model.updateSong(project, "s2", { bpm: 60, transpose: 12, channels: [["p1"]] });
 
+// s3: 拍子3/4（1小節=12列）。空白セルの休符が12列になることを実機で確認する
+project = Model.addSong(project); // s3
+project = Model.addPattern(project, "s3"); // s3/p1
+project = Model.updatePattern(project, "s3", "p1", {
+  notes: [24, -1, -1, -1, 24, -1, -1, -1, 24, -1, -1, -1], // 12列＝3/4の1小節ぶん
+  tones: [1], volumes: [6], effects: [0],
+});
+project = Model.updateSong(project, "s3", {
+  bpm: 120,
+  timeSignature: "3/4",
+  channels: [[null, "p1"]], // 先頭の空白セルが12列の休符になる
+});
+
 project = {
   ...project,
-  export: { musicSlots: ["s1", "s2", null, null, null, null, null, null] },
+  export: { musicSlots: ["s1", "s2", "s3", null, null, null, null, null] },
 };
 
 const alloc = Model.allocateExport(project);
@@ -52,4 +65,4 @@ if (!alloc.ok) {
   process.exit(1);
 }
 fs.writeFileSync(outPath, Exporter.buildPyxres(alloc));
-console.log(`生成完了: ${outPath}（2曲・曲内共有・rateModeあり）`);
+console.log(`生成完了: ${outPath}（3曲・曲内共有・rateModeあり・3/4拍子の空白セルあり）`);

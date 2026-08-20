@@ -8,6 +8,7 @@ const PianoRollView = (() => {
   const COL_W = 22;
   const ROW_H = 12;
   const ROWS = 60; // note値0〜59（C0〜B4）
+  const RULER_H = 16; // 小節番号ルーラーの高さ
   const EDGE_W = 6; // 右端のリサイズ判定幅（px）
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
@@ -15,6 +16,8 @@ const PianoRollView = (() => {
   let app = null;
   let canvas = null;
   let ctx = null;
+  let rulerCanvas = null;
+  let rulerCtx = null;
   // ドラッグ状態: { mode: "move" | "resize" | "select", ... }
   let drag = null;
   // 直近に入力した音程。休符列でのEnter入力に使う
@@ -319,6 +322,9 @@ const PianoRollView = (() => {
       rowAlt: v("--roll-row-alt"),
       grid: v("--roll-grid"),
       gridStrong: v("--roll-grid-strong"),
+      barLine: v("--roll-bar-line"),
+      rulerBg: v("--roll-ruler-bg"),
+      rulerLabel: v("--roll-ruler-label"),
       cLine: v("--roll-c-line"),
       selCol: v("--roll-selected-col"),
       note: v("--roll-note"),
@@ -330,13 +336,13 @@ const PianoRollView = (() => {
     };
   }
 
-  function draw(state) {
+  function draw(state, colors) {
     const pattern = app.currentPattern();
     const cols = pattern ? pattern.notes.length : 0;
+    const columnsPerBar = Model.columnsPerBar(app.currentSong());
     canvas.width = KEY_W + cols * COL_W;
     canvas.height = ROWS * ROW_H;
 
-    const colors = rollColors();
     ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!pattern) return;
@@ -369,9 +375,10 @@ const PianoRollView = (() => {
       ctx.fillRect(KEY_W + state.selectedCol * COL_W, 0, COL_W, canvas.height);
     }
 
-    // 縦グリッド（Domino風の緑系。4列=1拍ごとに強調）
+    // 縦グリッド（Domino風の緑系。4列=1拍・小節境界(columnsPerBar列)を段階的に強調）
     for (let col = 0; col <= cols; col++) {
-      ctx.strokeStyle = col % 4 === 0 ? colors.gridStrong : colors.grid;
+      ctx.strokeStyle =
+        col % columnsPerBar === 0 ? colors.barLine : col % 4 === 0 ? colors.gridStrong : colors.grid;
       ctx.beginPath();
       ctx.moveTo(KEY_W + col * COL_W + 0.5, 0);
       ctx.lineTo(KEY_W + col * COL_W + 0.5, canvas.height);
@@ -441,14 +448,53 @@ const PianoRollView = (() => {
     }
   }
 
+  // パターン内ローカルの小節番号ルーラー（1始まり）。本体canvasとは別canvasで、
+  // ヒットテスト・クリック判定（cellAt/hitAt）には一切関与しない
+  function drawRuler(colors) {
+    const pattern = app.currentPattern();
+    const cols = pattern ? pattern.notes.length : 0;
+    const columnsPerBar = Model.columnsPerBar(app.currentSong());
+    rulerCanvas.width = KEY_W + cols * COL_W;
+    rulerCanvas.height = RULER_H;
+
+    rulerCtx.fillStyle = colors.rulerBg;
+    rulerCtx.fillRect(0, 0, rulerCanvas.width, rulerCanvas.height);
+    if (!pattern) return;
+
+    rulerCtx.font = "9px sans-serif";
+    rulerCtx.fillStyle = colors.rulerLabel;
+    rulerCtx.strokeStyle = colors.barLine;
+    let barNumber = 1;
+    for (let col = 0; col < cols; col += columnsPerBar) {
+      const x = KEY_W + col * COL_W;
+      rulerCtx.beginPath();
+      rulerCtx.moveTo(x + 0.5, 0);
+      rulerCtx.lineTo(x + 0.5, rulerCanvas.height);
+      rulerCtx.stroke();
+      rulerCtx.fillText(String(barNumber), x + 3, rulerCanvas.height - 4);
+      barNumber++;
+    }
+  }
+
+  // 横スクロールのみルーラーへ同期する。rulerWrapはoverflow:hiddenでスクロールバーを
+  // 持たないため、scrollLeft代入だとscroll幅の差でクランプされズレる場合がある。
+  // transformなら常にscrollと同じ量だけ動かせる
+  function syncRulerScroll() {
+    const scroll = document.getElementById("piano-roll-scroll");
+    rulerCanvas.style.transform = `translateX(${-scroll.scrollLeft}px)`;
+  }
+
   function init(appRef) {
     app = appRef;
     canvas = document.getElementById("piano-roll");
     ctx = canvas.getContext("2d");
+    rulerCanvas = document.getElementById("piano-roll-ruler");
+    rulerCtx = rulerCanvas.getContext("2d");
     canvas.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("keydown", onKeyDown);
+    document.getElementById("piano-roll-scroll").addEventListener("scroll", syncRulerScroll);
   }
 
   function render(state) {
@@ -457,7 +503,10 @@ const PianoRollView = (() => {
     title.textContent = pattern
       ? `ピアノロール: ${pattern.name || pattern.id}`
       : "ピアノロール（パターン未選択）";
-    draw(state);
+    const colors = rollColors(); // draw/drawRulerで使い回し、getComputedStyle呼び出しを1回に抑える
+    draw(state, colors);
+    drawRuler(colors);
+    syncRulerScroll(); // パターン切替でcanvas幅が変わってもスクロール位置を保つ
   }
 
   return { init, render };
