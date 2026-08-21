@@ -208,8 +208,15 @@ const PianoRollView = (() => {
 
   function onKeyDown(event) {
     // 入力欄へのタイピングやダイアログ表示中は奪わない
-    const tag = document.activeElement ? document.activeElement.tagName : "";
+    const active = document.activeElement;
+    const tag = active ? active.tagName : "";
     if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
+    // 再生トグルボタンにフォーカスがある状態のEnter/Spaceは、このハンドラのEnter分岐が
+    // preventDefaultするとボタンのクリックが発火せずキーボードから再生できなくなるため、
+    // ボタンのネイティブ動作に譲る（他のキーはピアノロール側の操作を優先する）
+    const isPlayToggle =
+      active && (active.id === "btn-play-pattern" || active.id === "btn-play-song");
+    if (isPlayToggle && (event.key === "Enter" || event.key === " ")) return;
     if (document.querySelector("dialog[open]")) return;
 
     const pattern = app.currentPattern();
@@ -499,7 +506,7 @@ const PianoRollView = (() => {
 
   function render(state) {
     const pattern = app.currentPattern();
-    const title = document.getElementById("piano-roll-title");
+    const title = document.getElementById("piano-roll-title-text");
     title.textContent = pattern
       ? `ピアノロール: ${pattern.name || pattern.id}`
       : "ピアノロール（パターン未選択）";

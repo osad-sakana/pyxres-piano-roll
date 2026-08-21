@@ -54,6 +54,32 @@ const TransportBar = (() => {
     app.setState({ playing: null });
   }
 
+  // マウスクリック後はボタンからフォーカスを外し、ピアノロールの矢印キー操作等を
+  // 阻害しないようにする（event.detail>0はマウス、0はキーボード操作を示す）
+  function blurIfPointerEvent(event) {
+    if (event.detail > 0) event.currentTarget.blur();
+  }
+
+  // トグルボタン共通: 対象種別が再生中なら停止、それ以外なら
+  // （他方が再生中でもAudioEngine.playが内部でstopするため）そのまま再生開始する
+  function togglePattern(event) {
+    blurIfPointerEvent(event);
+    if (app.getState().playing === "pattern") {
+      stop();
+      return;
+    }
+    playPattern();
+  }
+
+  function toggleSong(event) {
+    blurIfPointerEvent(event);
+    if (app.getState().playing === "song") {
+      stop();
+      return;
+    }
+    playSong();
+  }
+
   async function loadJsonFile(file) {
     try {
       const project = await Storage.readProjectFile(file);
@@ -65,8 +91,8 @@ const TransportBar = (() => {
 
   function init(appRef) {
     app = appRef;
-    el("btn-play-pattern").addEventListener("click", playPattern);
-    el("btn-play-song").addEventListener("click", playSong);
+    el("btn-play-pattern").addEventListener("click", togglePattern);
+    el("btn-play-song").addEventListener("click", toggleSong);
     el("btn-stop").addEventListener("click", stop);
     el("btn-save-json").addEventListener("click", () =>
       Storage.downloadProjectJson(app.getState().project)
@@ -82,9 +108,33 @@ const TransportBar = (() => {
     el("btn-theme").addEventListener("click", toggleTheme);
   }
 
+  // 再生トグルボタンの表示をstate.playingから一元的に導出する。
+  // hasTarget=falseでも再生中(isPlaying)なら停止できるようdisabledにはしない
+  // （対象を削除した直後でも既存の再生を止められるようにするため）
+  function renderToggleButton(id, isPlaying, hasTarget, label, playTitle) {
+    const btn = el(id);
+    btn.classList.toggle("playing", isPlaying);
+    btn.setAttribute("aria-pressed", String(isPlaying));
+    btn.disabled = !hasTarget && !isPlaying;
+    btn.textContent = isPlaying ? `■ ${label}` : `▶ ${label}`;
+    btn.title = isPlaying ? `${label}の再生を停止` : playTitle;
+  }
+
   function render(state) {
-    el("btn-play-pattern").classList.toggle("playing", state.playing === "pattern");
-    el("btn-play-song").classList.toggle("playing", state.playing === "song");
+    renderToggleButton(
+      "btn-play-pattern",
+      state.playing === "pattern",
+      Boolean(app.currentPattern()),
+      "パターン",
+      "選択中パターンを再生"
+    );
+    renderToggleButton(
+      "btn-play-song",
+      state.playing === "song",
+      Boolean(app.currentSong()),
+      "曲",
+      "選択中の曲を再生"
+    );
     el("btn-theme").textContent = currentTheme() === "dark" ? "☀️" : "🌙";
     const title = el("project-title");
     if (title.value !== state.project.meta.title && document.activeElement !== title) {
