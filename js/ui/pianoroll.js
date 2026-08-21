@@ -129,10 +129,15 @@ const PianoRollView = (() => {
     if (rawCol < 0) return; // 左端の鍵盤ラベル列にはみ出た分は無視
     event.preventDefault();
     // mousedownの既定動作（フォーカス移動）を止めた分、入力欄が残ったままだと
-    // 直後のCtrl+Cが選択小節ではなく入力欄のテキストを拾ってしまうため明示的に外す
-    if (document.activeElement && document.activeElement !== document.body) {
-      document.activeElement.blur();
-    }
+    // 直後のCtrl+Cが選択小節ではなく入力欄のテキストを拾ってしまう。
+    // blur()はchangeイベント経由でパターン長変更などパターン自体を差し替えうるため、
+    // 入力系要素に限定したうえでblur後にpatternを取り直し、差し替わっていたら中断する
+    // （パターン長変更ハンドラ側が行うselectedCol/selectionAnchorのリセットに委ねる）
+    const active = document.activeElement;
+    const tag = active ? active.tagName : "";
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) active.blur();
+    const currentPattern = app.currentPattern();
+    if (!currentPattern || currentPattern !== pattern) return;
     const columnsPerBar = Model.columnsPerBar(app.currentSong());
     const cols = pattern.notes.length;
     const col = Math.min(cols - 1, rawCol);
