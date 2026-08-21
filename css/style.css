@@ -276,7 +276,7 @@ button.playing {
   white-space: nowrap;
   min-width: 0;
 }
-#piano-roll-title button { flex: none; padding: 1px 8px; }
+#piano-roll-title button { flex: none; padding: 0 7px; }
 #piano-roll-hint { margin: 0 0 6px; font-size: 11px; color: var(--text-dim); }
 #piano-roll-ruler-wrap {
   overflow: hidden;

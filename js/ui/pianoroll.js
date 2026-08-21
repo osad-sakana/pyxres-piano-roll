@@ -211,9 +211,12 @@ const PianoRollView = (() => {
     const active = document.activeElement;
     const tag = active ? active.tagName : "";
     if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
-    // 再生トグルボタンはクリック後もフォーカスが残るため、キー操作を奪わないよう除外する
-    // （他のボタンはクリック後にフォーカスが外れるためこの除外は不要）
-    if (active && (active.id === "btn-play-pattern" || active.id === "btn-play-song")) return;
+    // 再生トグルボタンにフォーカスがある状態のEnter/Spaceは、このハンドラのEnter分岐が
+    // preventDefaultするとボタンのクリックが発火せずキーボードから再生できなくなるため、
+    // ボタンのネイティブ動作に譲る（他のキーはピアノロール側の操作を優先する）
+    const isPlayToggle =
+      active && (active.id === "btn-play-pattern" || active.id === "btn-play-song");
+    if (isPlayToggle && (event.key === "Enter" || event.key === " ")) return;
     if (document.querySelector("dialog[open]")) return;
 
     const pattern = app.currentPattern();
