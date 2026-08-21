@@ -208,8 +208,12 @@ const PianoRollView = (() => {
 
   function onKeyDown(event) {
     // 入力欄へのタイピングやダイアログ表示中は奪わない
-    const tag = document.activeElement ? document.activeElement.tagName : "";
-    if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(tag)) return;
+    const active = document.activeElement;
+    const tag = active ? active.tagName : "";
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
+    // 再生トグルボタンはクリック後もフォーカスが残るため、キー操作を奪わないよう除外する
+    // （他のボタンはクリック後にフォーカスが外れるためこの除外は不要）
+    if (active && (active.id === "btn-play-pattern" || active.id === "btn-play-song")) return;
     if (document.querySelector("dialog[open]")) return;
 
     const pattern = app.currentPattern();

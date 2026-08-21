@@ -135,7 +135,7 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 }
 #transport-bar .spacer { flex: 1; }
 #transport-bar .loop-label { color: var(--text-dim); display: flex; align-items: center; gap: 3px; }
-#btn-play-song.playing {
+button.playing {
   background: var(--accent-weak);
   border-color: var(--accent);
 }
@@ -276,11 +276,7 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   white-space: nowrap;
   min-width: 0;
 }
-#piano-roll-title button { flex: none; }
-#btn-play-pattern.playing {
-  background: var(--accent-weak);
-  border-color: var(--accent);
-}
+#piano-roll-title button { flex: none; padding: 1px 8px; }
 #piano-roll-hint { margin: 0 0 6px; font-size: 11px; color: var(--text-dim); }
 #piano-roll-ruler-wrap {
   overflow: hidden;

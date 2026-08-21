@@ -111,12 +111,13 @@ const TransportBar = (() => {
   // 再生トグルボタンの表示をstate.playingから一元的に導出する。
   // hasTarget=falseでも再生中(isPlaying)なら停止できるようdisabledにはしない
   // （対象を削除した直後でも既存の再生を止められるようにするため）
-  function renderToggleButton(id, isPlaying, hasTarget, label) {
+  function renderToggleButton(id, isPlaying, hasTarget, label, playTitle) {
     const btn = el(id);
     btn.classList.toggle("playing", isPlaying);
     btn.setAttribute("aria-pressed", String(isPlaying));
     btn.disabled = !hasTarget && !isPlaying;
     btn.textContent = isPlaying ? `■ ${label}` : `▶ ${label}`;
+    btn.title = isPlaying ? `${label}の再生を停止` : playTitle;
   }
 
   function render(state) {
@@ -124,13 +125,15 @@ const TransportBar = (() => {
       "btn-play-pattern",
       state.playing === "pattern",
       Boolean(app.currentPattern()),
-      "パターン"
+      "パターン",
+      "選択中パターンを再生"
     );
     renderToggleButton(
       "btn-play-song",
       state.playing === "song",
       Boolean(app.currentSong()),
-      "曲"
+      "曲",
+      "選択中の曲を再生"
     );
     el("btn-theme").textContent = currentTheme() === "dark" ? "☀️" : "🌙";
     const title = el("project-title");
