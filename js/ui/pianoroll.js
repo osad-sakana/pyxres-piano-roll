@@ -139,7 +139,7 @@ const PianoRollView = (() => {
     if (rawCol < 0) return; // 左端の鍵盤ラベル列にはみ出た分は無視
     event.preventDefault();
     // mousedownの既定動作（フォーカス移動）を止めた分、入力欄が残ったままだと
-    // 直後のCtrl+Cが選択小節ではなく入力欄のテキストを拾ってしまう。
+    // 直後のCtrl+Cが選択範囲ではなく入力欄のテキストを拾ってしまう。
     // blur()はchangeイベント経由でパターン長変更などパターン自体を差し替えうるため、
     // 入力系要素に限定したうえでblur後にpatternを取り直し、差し替わっていたら中断する
     // （パターン長変更ハンドラ側が行うselectedCol/selectionAnchorのリセットに委ねる）
@@ -148,11 +148,9 @@ const PianoRollView = (() => {
     if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) active.blur();
     const currentPattern = app.currentPattern();
     if (!currentPattern || currentPattern !== pattern) return;
-    const columnsPerBar = Model.columnsPerBar(app.currentSong());
-    const cols = pattern.notes.length;
-    const col = Math.min(cols - 1, rawCol);
-    drag = { mode: "ruler", cols, columnsPerBar, anchorCol: col, lastBar: Math.floor(col / columnsPerBar) };
-    app.setState(Selection.barDragSelection(cols, columnsPerBar, col, col));
+    const patch = Selection.colDragSelection(pattern.notes.length, rawCol, rawCol);
+    drag = { mode: "ruler", anchorCol: patch.selectionAnchor };
+    app.setState(patch);
   }
 
   function onMouseDown(event) {
@@ -167,8 +165,9 @@ const PianoRollView = (() => {
       const anchor = state.selectionAnchor !== null
         ? state.selectionAnchor
         : state.selectedCol !== null ? state.selectedCol : cell.col;
-      drag = { mode: "select", anchor };
-      app.setState({ selectedCol: cell.col, selectionAnchor: anchor });
+      const patch = Selection.colDragSelection(pattern.notes.length, anchor, cell.col);
+      drag = { mode: "select", anchor: patch.selectionAnchor };
+      app.setState(patch);
       return;
     }
 
@@ -205,19 +204,17 @@ const PianoRollView = (() => {
       // ロール外へ縦にはみ出しても列だけは追従させる（cellAtは行範囲外でnullを返すため使わない）
       const { x } = pointAt(event);
       const rawCol = Math.floor((x - KEY_W) / COL_W);
-      const col = Math.min(pattern.notes.length - 1, Math.max(0, rawCol));
-      if (col === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
-      app.setState({ selectedCol: col, selectionAnchor: drag.anchor });
+      const patch = Selection.colDragSelection(pattern.notes.length, drag.anchor, rawCol);
+      if (patch.selectedCol === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
+      app.setState(patch);
       return;
     }
 
     if (drag.mode === "ruler") {
       // ルーラー外（本体canvas上など）へ出てもclientX基準で列だけは追従させる
-      const col = Math.min(drag.cols - 1, Math.max(0, rulerRawColAt(event)));
-      const bar = Math.floor(col / drag.columnsPerBar);
-      if (bar === drag.lastBar) return; // 同じ小節内の移動では再描画しない
-      drag = { ...drag, lastBar: bar };
-      app.setState(Selection.barDragSelection(drag.cols, drag.columnsPerBar, drag.anchorCol, col));
+      const patch = Selection.colDragSelection(pattern.notes.length, drag.anchorCol, rulerRawColAt(event));
+      if (patch.selectedCol === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
+      app.setState(patch);
       return;
     }
 
