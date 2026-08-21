@@ -13,7 +13,25 @@ const Selection = (() => {
     return patch;
   }
 
-  return { normalizePatch };
+  // 小節番号ルーラーのクリック／ドラッグから、小節境界に揃えた選択範囲を求める。
+  // anchorCol/currentColは列インデックス（範囲外・逆順を許容し内部でクランプする）。
+  // キャレット（selectedCol）は既存のCtrl+A等と同様、範囲の「ドラッグが進んでいる側」に置く。
+  function barDragSelection(cols, columnsPerBar, anchorCol, currentCol) {
+    const clampCol = (col) => Math.min(cols - 1, Math.max(0, col));
+    const barOf = (col) => Math.floor(clampCol(col) / columnsPerBar);
+    const barStart = (bar) => bar * columnsPerBar;
+    const barEnd = (bar) => Math.min(cols - 1, (bar + 1) * columnsPerBar - 1);
+
+    const anchorBar = barOf(anchorCol);
+    const currentBar = barOf(currentCol);
+
+    if (currentBar >= anchorBar) {
+      return { selectedCol: barEnd(currentBar), selectionAnchor: barStart(anchorBar) };
+    }
+    return { selectedCol: barStart(currentBar), selectionAnchor: barEnd(anchorBar) };
+  }
+
+  return { normalizePatch, barDragSelection };
 })();
 
 if (typeof module !== "undefined") module.exports = Selection;

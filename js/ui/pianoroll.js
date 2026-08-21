@@ -112,6 +112,28 @@ const PianoRollView = (() => {
     applyPattern(Model.resizeNoteAt(app.currentPattern(), start, len));
   }
 
+  // ルーラー上のx座標から列インデックスを求める（rulerCanvas基準。translateXでスクロール
+  // 済みのため getBoundingClientRect() の値がそのままスクロール後の位置になる）
+  function rulerColAt(event) {
+    const rect = rulerCanvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    if (x < KEY_W) return null;
+    return Math.floor((x - KEY_W) / COL_W);
+  }
+
+  function onRulerMouseDown(event) {
+    if (event.button !== 0) return;
+    const pattern = app.currentPattern();
+    if (!pattern || pattern.notes.length === 0) return;
+    const col = rulerColAt(event);
+    if (col === null) return;
+    event.preventDefault();
+    const columnsPerBar = Model.columnsPerBar(app.currentSong());
+    const cols = pattern.notes.length;
+    drag = { mode: "ruler", cols, columnsPerBar, anchorCol: col, lastBar: Math.floor(col / columnsPerBar) };
+    app.setState(Selection.barDragSelection(cols, columnsPerBar, col, col));
+  }
+
   function onMouseDown(event) {
     const pattern = app.currentPattern();
     if (!pattern) return;
@@ -165,6 +187,18 @@ const PianoRollView = (() => {
       const col = Math.min(pattern.notes.length - 1, Math.max(0, rawCol));
       if (col === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
       app.setState({ selectedCol: col, selectionAnchor: drag.anchor });
+      return;
+    }
+
+    if (drag.mode === "ruler") {
+      // ルーラー外（本体canvas上など）へ出てもclientX基準で列だけは追従させる
+      const rect = rulerCanvas.getBoundingClientRect();
+      const rawCol = Math.floor((event.clientX - rect.left - KEY_W) / COL_W);
+      const col = Math.min(drag.cols - 1, Math.max(0, rawCol));
+      const bar = Math.floor(col / drag.columnsPerBar);
+      if (bar === drag.lastBar) return; // 同じ小節内の移動では再描画しない
+      drag = { ...drag, lastBar: bar };
+      app.setState(Selection.barDragSelection(drag.cols, drag.columnsPerBar, drag.anchorCol, col));
       return;
     }
 
@@ -498,6 +532,7 @@ const PianoRollView = (() => {
     rulerCanvas = document.getElementById("piano-roll-ruler");
     rulerCtx = rulerCanvas.getContext("2d");
     canvas.addEventListener("mousedown", onMouseDown);
+    rulerCanvas.addEventListener("mousedown", onRulerMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("keydown", onKeyDown);
