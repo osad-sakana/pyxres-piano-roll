@@ -365,6 +365,7 @@ const Model = (() => {
   // 参照同一性に依存しているため、新規オブジェクトを返してはいけない）。
   function transposeRange(pattern, start, end, semitones) {
     if (!Number.isInteger(semitones) || semitones === 0) return pattern;
+    if (!Number.isInteger(start) || !Number.isInteger(end)) return pattern;
     const lo = Math.max(0, start);
     const hi = Math.min(end, pattern.notes.length - 1);
     const starts = new Set();

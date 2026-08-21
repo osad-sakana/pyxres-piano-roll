@@ -819,6 +819,11 @@ test("transposeRange: 結果はvalidatePatternを通る", () => {
   assert.deepEqual(Model.validatePattern(result), []);
 });
 
+test("transposeRange: start/endが非整数なら引数のpatternをそのまま返す（参照同一性）", () => {
+  const pat = lengthsFixture();
+  assert.equal(Model.transposeRange(pat, 2.5, 2.5, 1), pat);
+});
+
 test("transposeRange: 幅1(start===end)でも保持音の途中を指していれば開始列のノートが移調される", () => {
   const pat = lengthsFixture(); // notes[0]=24, len3（col1は保持中）
   const result = Model.transposeRange(pat, 1, 1, 1);
