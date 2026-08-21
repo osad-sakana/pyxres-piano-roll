@@ -693,6 +693,143 @@ test("copyRange/clearRange/pasteRange: 結果はvalidatePatternを通る", () =>
   }
 });
 
+// ---- transposeRange（選択範囲の移調） ----
+
+test("transposeRange: 範囲内で開始するノートが半音上がる（音価・tones等は不変）", () => {
+  const pat = lengthsFixture(); // notes[3]=28, len1
+  const result = Model.transposeRange(pat, 3, 3, 1);
+  assert.equal(result.notes[3], 29);
+  assert.deepEqual(result.lengths, pat.lengths);
+  assert.deepEqual(result.tones, pat.tones);
+  assert.deepEqual(result.volumes, pat.volumes);
+  assert.deepEqual(result.effects, pat.effects);
+});
+
+test("transposeRange: 範囲へ左から食い込むノートも分割されず開始列ごと移調される", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3（col0〜2を覆う）
+  const result = Model.transposeRange(pat, 1, 2, 1);
+  assert.equal(result.notes[0], 25);
+  assert.equal(result.lengths[0], 3); // 分割されない
+  assert.equal(result.notes[1], -1);
+  assert.equal(result.notes[2], -1);
+});
+
+test("transposeRange: 範囲から右へ突き抜けるノートも丸ごと移調され音価が変わらない", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 2, 30, 4); // col2〜5を覆う
+  const result = Model.transposeRange(pat, 2, 3, 1); // 範囲末尾はcol3
+  assert.equal(result.notes[2], 31);
+  assert.equal(result.lengths[2], 4); // 突き抜け分も保たれる
+});
+
+test("transposeRange: 範囲内の1音でも上端(NOTE_MAX)を超えるなら引数のpatternをそのまま返す（参照同一性）", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 58, 1);
+  pat = Model.placeNote(pat, 1, 20, 1);
+  const result = Model.transposeRange(pat, 0, 1, 2); // 58+2=60は範囲外
+  assert.equal(result, pat); // UIがこの参照同一性でno-opを判定するため、deepEqualでは不十分
+});
+
+test("transposeRange: 範囲内の1音でも下端(0)を割るなら引数のpatternをそのまま返す（参照同一性）", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 0, 1);
+  pat = Model.placeNote(pat, 1, 20, 1);
+  const result = Model.transposeRange(pat, 0, 1, -1);
+  assert.equal(result, pat);
+});
+
+test("transposeRange: semitones=0はno-op", () => {
+  const pat = lengthsFixture();
+  assert.equal(Model.transposeRange(pat, 0, 3, 0), pat);
+});
+
+test("transposeRange: 全休符範囲はno-op", () => {
+  const pat = lengthsFixture();
+  assert.equal(Model.transposeRange(pat, 10, 12, 1), pat);
+});
+
+test("transposeRange: 範囲内で同じノートに複数列が重なっていても二重に移調されない", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3（col0〜2を覆う）
+  const result = Model.transposeRange(pat, 0, 2, 1);
+  assert.equal(result.notes[0], 25);
+});
+
+test("transposeRange: 上げてから同じ範囲を下げると元パターンに戻る（可逆性）", () => {
+  const pat = lengthsFixture();
+  const up = Model.transposeRange(pat, 0, 3, 1);
+  const down = Model.transposeRange(up, 0, 3, -1);
+  assert.deepEqual(down, pat);
+});
+
+test("transposeRange: 元パターンを破壊しない", () => {
+  const pat = lengthsFixture();
+  const before = JSON.parse(JSON.stringify(pat));
+  Model.transposeRange(pat, 0, 3, 1);
+  assert.deepEqual(pat, before);
+});
+
+test("transposeRange: 範囲外のノートは対象外で不変", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 4, 30, 1); // 範囲内
+  pat = Model.placeNote(pat, 8, 40, 1); // 範囲外
+  const result = Model.transposeRange(pat, 3, 5, 1);
+  assert.equal(result.notes[4], 31);
+  assert.equal(result.notes[8], 40); // 変わらない
+});
+
+test("transposeRange: 範囲に届かない手前のノートは不変", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3（col0〜2までしか覆わない）
+  const result = Model.transposeRange(pat, 3, 5, 1); // col3以降は範囲外
+  assert.equal(result.notes[0], 24); // 手前のノートは届いていないので不変
+});
+
+test("transposeRange: 範囲外から食い込むノートも上下限チェックの対象になり、超えるなら範囲全体がno-op", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 58, 4); // col0〜3を覆う。開始列(col0)は範囲外
+  const result = Model.transposeRange(pat, 2, 3, 2); // 58+2=60は範囲外
+  assert.equal(result, pat);
+});
+
+test("transposeRange: 音域の端ちょうど(58→59, 1→0)は成功する", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 58, 1);
+  pat = Model.placeNote(pat, 1, 1, 1);
+  const up = Model.transposeRange(pat, 0, 0, 1);
+  assert.equal(up.notes[0], 59);
+  const down = Model.transposeRange(pat, 1, 1, -1);
+  assert.equal(down.notes[1], 0);
+});
+
+test("transposeRange: start/endがパターン範囲外でもクランプして正常動作する", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3
+  const result = Model.transposeRange(pat, -5, 9999, 1);
+  assert.equal(result.notes[0], 25);
+  assert.equal(result.notes[3], 29);
+});
+
+test("transposeRange: semitonesが非整数(NaN・小数)ならno-op", () => {
+  const pat = lengthsFixture();
+  assert.equal(Model.transposeRange(pat, 0, 3, NaN), pat);
+  assert.equal(Model.transposeRange(pat, 0, 3, 0.5), pat);
+});
+
+test("transposeRange: 結果はvalidatePatternを通る", () => {
+  const pat = lengthsFixture();
+  const result = Model.transposeRange(pat, 0, 3, 1);
+  assert.deepEqual(Model.validatePattern(result), []);
+});
+
+test("transposeRange: start/endが非整数なら引数のpatternをそのまま返す（参照同一性）", () => {
+  const pat = lengthsFixture();
+  assert.equal(Model.transposeRange(pat, 2.5, 2.5, 1), pat);
+});
+
+test("transposeRange: 幅1(start===end)でも保持音の途中を指していれば開始列のノートが移調される", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3（col1は保持中）
+  const result = Model.transposeRange(pat, 1, 1, 1);
+  assert.equal(result.notes[0], 25);
+});
+
 test("duplicatePatternInChannel: 同じパターンをチャンネルの右隣へ挿入する", () => {
   let p = baseProject();
   p = Model.addPattern(p, "s1"); // p2

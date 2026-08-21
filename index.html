@@ -57,7 +57,7 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
         <span id="piano-roll-title-text">ピアノロール</span>
         <button id="btn-play-pattern" title="選択中パターンを再生" aria-pressed="false">▶ パターン</button>
       </h2>
-      <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符 ／ Shift+←→・Shift+ドラッグ: 範囲選択 ／ 小節ルーラーのクリック/ドラッグ: 小節単位で範囲選択 ／ Ctrl(Cmd)+C/X/V: コピー/カット/ペースト</p>
+      <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調（範囲選択中は範囲に重なる全ノート） ／ Enter: 音符⇔休符 ／ Shift+←→・Shift+ドラッグ: 範囲選択 ／ 小節ルーラーのクリック/ドラッグ: 小節単位で範囲選択 ／ Ctrl(Cmd)+C/X/V: コピー/カット/ペースト</p>
       <div id="piano-roll-ruler-wrap">
         <canvas id="piano-roll-ruler"></canvas>
       </div>
@@ -114,7 +114,7 @@ pyxel.playm(0, loop=True)  # 書き出しダイアログで割り当てたスロ
   <h3>ピアノロールのキーボード操作</h3>
   <ul>
     <li><kbd>←</kbd><kbd>→</kbd>: 選択列を左右に移動</li>
-    <li><kbd>↑</kbd><kbd>↓</kbd>: 選択列のノートを半音ずつ移調</li>
+    <li><kbd>↑</kbd><kbd>↓</kbd>: 選択列（範囲選択中は範囲に重なる全ノート）を半音ずつ移調。範囲に重なる音が1つでも音域端を超える場合は何も動かない</li>
     <li><kbd>Enter</kbd>: 休符列なら直前に入力した音程で配置、音符列なら休符に変更</li>
     <li><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> / <kbd>Shift</kbd>+クリック・ドラッグ: 範囲選択</li>
     <li><kbd>Ctrl(Cmd)</kbd>+<kbd>A</kbd>: 全列を選択 ／ <kbd>Esc</kbd>: 選択解除</li>

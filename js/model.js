@@ -354,6 +354,34 @@ const Model = (() => {
     return p;
   }
 
+  // [start, end]に重なるノートの音程をsemitones分ずらす（ピアノロールの方向キー上下・
+  // 選択範囲移調用の破壊的編集）。song.transposeの非破壊移調（transposeNote/transposeNotes、
+  // 再生・書き出し解決用）とは別物。範囲境界での分割はしない。↓で元に戻しても分割自体は
+  // 戻らず、エディタ上のノート構造（音価、ノート個別編集時はtone/volume/effectも）が
+  // 不可逆に失われてしまうため。
+  // 対象ノートが1つでも音域(0〜NOTE_MAX)を外れる場合は全体を無変更で返す。このアプリに
+  // Undoはなく方向キーの逆操作が実質のUndoなので、部分的なクランプは不可逆な情報損失になる。
+  // 変更がない場合は必ず引数のpatternをそのまま返す（===比較。UI側の早期returnが
+  // 参照同一性に依存しているため、新規オブジェクトを返してはいけない）。
+  function transposeRange(pattern, start, end, semitones) {
+    if (!Number.isInteger(semitones) || semitones === 0) return pattern;
+    if (!Number.isInteger(start) || !Number.isInteger(end)) return pattern;
+    const lo = Math.max(0, start);
+    const hi = Math.min(end, pattern.notes.length - 1);
+    const starts = new Set();
+    for (let col = lo; col <= hi; col++) {
+      const span = noteSpanAt(pattern, col);
+      if (span) starts.add(span.start);
+    }
+    if (starts.size === 0) return pattern;
+    for (const s of starts) {
+      const note = pattern.notes[s] + semitones;
+      if (note < 0 || note > NOTE_MAX) return pattern;
+    }
+    const notes = pattern.notes.map((v, i) => (starts.has(i) ? v + semitones : v));
+    return { ...pattern, notes };
+  }
+
   // 音価を列単位の連続ノートへ分割展開する（書き出し・再生用）。
   // pyxresに音価の概念はないため、長さNのノートは同音程N列になる。
   function expandPattern(pattern) {
@@ -814,6 +842,7 @@ const Model = (() => {
     clearRange,
     pasteRange,
     pasteWidth,
+    transposeRange,
     expandPattern,
     resizePattern,
     expandProperty,
