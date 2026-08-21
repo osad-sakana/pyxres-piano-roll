@@ -722,20 +722,20 @@ test("transposeRange: 範囲から右へ突き抜けるノートも丸ごと移�
   assert.equal(result.lengths[2], 4); // 突き抜け分も保たれる
 });
 
-test("transposeRange: 範囲内の1音でも上端(NOTE_MAX)を超えるなら全体を変更せず返す", () => {
+test("transposeRange: 範囲内の1音でも上端(NOTE_MAX)を超えるなら引数のpatternをそのまま返す（参照同一性）", () => {
   let pat = Model.createPattern("p1");
   pat = Model.placeNote(pat, 0, 58, 1);
   pat = Model.placeNote(pat, 1, 20, 1);
   const result = Model.transposeRange(pat, 0, 1, 2); // 58+2=60は範囲外
-  assert.deepEqual(result, pat);
+  assert.equal(result, pat); // UIがこの参照同一性でno-opを判定するため、deepEqualでは不十分
 });
 
-test("transposeRange: 範囲内の1音でも下端(0)を割るなら全体を変更せず返す", () => {
+test("transposeRange: 範囲内の1音でも下端(0)を割るなら引数のpatternをそのまま返す（参照同一性）", () => {
   let pat = Model.createPattern("p1");
   pat = Model.placeNote(pat, 0, 0, 1);
   pat = Model.placeNote(pat, 1, 20, 1);
   const result = Model.transposeRange(pat, 0, 1, -1);
-  assert.deepEqual(result, pat);
+  assert.equal(result, pat);
 });
 
 test("transposeRange: semitones=0はno-op", () => {
@@ -787,7 +787,7 @@ test("transposeRange: 範囲外から食い込むノートも上下限チェッ�
   let pat = Model.createPattern("p1");
   pat = Model.placeNote(pat, 0, 58, 4); // col0〜3を覆う。開始列(col0)は範囲外
   const result = Model.transposeRange(pat, 2, 3, 2); // 58+2=60は範囲外
-  assert.deepEqual(result, pat);
+  assert.equal(result, pat);
 });
 
 test("transposeRange: 音域の端ちょうど(58→59, 1→0)は成功する", () => {
