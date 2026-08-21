@@ -47,3 +47,8 @@ test("colDragSelection: アンカーより手前へドラッグしてもアン�
   const result = Selection.colDragSelection(64, 20, 17);
   assert.deepEqual(result, { selectedCol: 17, selectionAnchor: 20 });
 });
+
+test("colDragSelection: 範囲外のアンカー列もクランプする", () => {
+  const result = Selection.colDragSelection(64, -5, 10);
+  assert.deepEqual(result, { selectedCol: 10, selectionAnchor: 0 });
+});

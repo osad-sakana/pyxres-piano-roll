@@ -148,9 +148,9 @@ const PianoRollView = (() => {
     if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) active.blur();
     const currentPattern = app.currentPattern();
     if (!currentPattern || currentPattern !== pattern) return;
-    const col = Math.min(pattern.notes.length - 1, rawCol);
-    drag = { mode: "ruler", anchorCol: col };
-    app.setState({ selectedCol: col, selectionAnchor: col });
+    const patch = Selection.colDragSelection(pattern.notes.length, rawCol, rawCol);
+    drag = { mode: "ruler", anchorCol: patch.selectedCol };
+    app.setState(patch);
   }
 
   function onMouseDown(event) {
@@ -203,9 +203,9 @@ const PianoRollView = (() => {
       // ロール外へ縦にはみ出しても列だけは追従させる（cellAtは行範囲外でnullを返すため使わない）
       const { x } = pointAt(event);
       const rawCol = Math.floor((x - KEY_W) / COL_W);
-      const col = Math.min(pattern.notes.length - 1, Math.max(0, rawCol));
-      if (col === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
-      app.setState({ selectedCol: col, selectionAnchor: drag.anchor });
+      const patch = Selection.colDragSelection(pattern.notes.length, drag.anchor, rawCol);
+      if (patch.selectedCol === app.getState().selectedCol) return; // 同じ列内の移動では再描画しない
+      app.setState(patch);
       return;
     }
 

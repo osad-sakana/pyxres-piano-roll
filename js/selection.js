@@ -14,12 +14,14 @@ const Selection = (() => {
     return patch;
   }
 
-  // 小節番号ルーラーのドラッグから、列単位（最小ノート単位）の選択範囲を求める。
-  // currentColは範囲外・アンカーより手前を許容し、内部で[0, cols-1]へクランプする。
-  // アンカー列は固定したままキャレット（selectedCol）だけを追従させる。
+  // 列単位（最小ノート単位）のドラッグ選択。ルーラー・本体キャンバス双方のドラッグ選択
+  // （Shift+ドラッグ含む）から共通で呼ばれる。anchorCol/currentColは範囲外・逆順を許容し、
+  // 内部で両方とも[0, cols-1]へクランプする。cols >= 1 を前提とする
+  // （呼び出し側でパターンの列数が0でないことを保証すること。Model.resizePatternが
+  // length<1を弾くため実運用上は常に成立する）。
   function colDragSelection(cols, anchorCol, currentCol) {
-    const col = Math.min(cols - 1, Math.max(0, currentCol));
-    return { selectedCol: col, selectionAnchor: anchorCol };
+    const clamp = (col) => Math.min(cols - 1, Math.max(0, col));
+    return { selectedCol: clamp(currentCol), selectionAnchor: clamp(anchorCol) };
   }
 
   return { normalizePatch, colDragSelection };
