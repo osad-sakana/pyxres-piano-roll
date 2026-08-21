@@ -765,8 +765,52 @@ test("transposeRange: 元パターンを破壊しない", () => {
   const pat = lengthsFixture();
   const before = JSON.parse(JSON.stringify(pat));
   Model.transposeRange(pat, 0, 3, 1);
-  assert.deepEqual(pat.notes, before.notes);
-  assert.deepEqual(pat.lengths, before.lengths);
+  assert.deepEqual(pat, before);
+});
+
+test("transposeRange: 範囲外のノートは対象外で不変", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 4, 30, 1); // 範囲内
+  pat = Model.placeNote(pat, 8, 40, 1); // 範囲外
+  const result = Model.transposeRange(pat, 3, 5, 1);
+  assert.equal(result.notes[4], 31);
+  assert.equal(result.notes[8], 40); // 変わらない
+});
+
+test("transposeRange: 範囲に届かない手前のノートは不変", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3（col0〜2までしか覆わない）
+  const result = Model.transposeRange(pat, 3, 5, 1); // col3以降は範囲外
+  assert.equal(result.notes[0], 24); // 手前のノートは届いていないので不変
+});
+
+test("transposeRange: 範囲外から食い込むノートも上下限チェックの対象になり、超えるなら範囲全体がno-op", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 58, 4); // col0〜3を覆う。開始列(col0)は範囲外
+  const result = Model.transposeRange(pat, 2, 3, 2); // 58+2=60は範囲外
+  assert.deepEqual(result, pat);
+});
+
+test("transposeRange: 音域の端ちょうど(58→59, 1→0)は成功する", () => {
+  let pat = Model.createPattern("p1");
+  pat = Model.placeNote(pat, 0, 58, 1);
+  pat = Model.placeNote(pat, 1, 1, 1);
+  const up = Model.transposeRange(pat, 0, 0, 1);
+  assert.equal(up.notes[0], 59);
+  const down = Model.transposeRange(pat, 1, 1, -1);
+  assert.equal(down.notes[1], 0);
+});
+
+test("transposeRange: start/endがパターン範囲外でもクランプして正常動作する", () => {
+  const pat = lengthsFixture(); // notes[0]=24, len3
+  const result = Model.transposeRange(pat, -5, 9999, 1);
+  assert.equal(result.notes[0], 25);
+  assert.equal(result.notes[3], 29);
+});
+
+test("transposeRange: semitonesが非整数(NaN・小数)ならno-op", () => {
+  const pat = lengthsFixture();
+  assert.equal(Model.transposeRange(pat, 0, 3, NaN), pat);
+  assert.equal(Model.transposeRange(pat, 0, 3, 0.5), pat);
 });
 
 test("transposeRange: 結果はvalidatePatternを通る", () => {

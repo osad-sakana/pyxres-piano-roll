@@ -76,11 +76,9 @@ const PianoRollView = (() => {
     AudioEngine.play(AudioEngine.renderPreviewNote(pitch, tone, volume));
   }
 
-  // 範囲移調後のプレビュー対象スパンを1つ選ぶ（AudioEngineは同時に1音しか鳴らせないため）。
-  // キャレット列を優先し、覆っていなければ範囲を先頭から走査する
-  function transposePreviewSpan(pattern, selectedCol, range) {
-    const atCaret = Model.noteSpanAt(pattern, selectedCol);
-    if (atCaret) return atCaret;
+  // 範囲移調後のプレビュー対象スパンを範囲の先頭から探す（AudioEngineは同時に1音しか鳴らせない
+  // ため1つに絞る）。キャレットが休符列にあり覆っていない場合のフォールバック用
+  function transposePreviewSpan(pattern, range) {
     for (let col = range.start; col <= range.end; col++) {
       const span = Model.noteSpanAt(pattern, col);
       if (span) return span;
@@ -355,11 +353,12 @@ const PianoRollView = (() => {
       const updated = Model.transposeRange(pattern, range.start, range.end, delta);
       if (updated === pattern) return; // 対象なし、または範囲内の音が音域端を超える
       applyPattern(updated); // patchなし: キャレット・選択範囲は維持する
-      // updated !== pattern は範囲内に対象ノートが存在したことを保証し、selectedColは常に
-      // range内にあるため、このフォールバック探索は必ず1つ見つける（nullにはならない）
-      const previewSpan = transposePreviewSpan(updated, state.selectedCol, range);
-      lastNote = previewSpan.note;
-      previewNote(updated, previewSpan.start, previewSpan.note);
+      // lastNoteはキャレットが実際にノートを指している場合のみ更新する（従来通り。休符列に
+      // キャレットがある間は、プレビュー用に拾った無関係なノートの音程で上書きしない）
+      const atCaret = Model.noteSpanAt(updated, state.selectedCol);
+      if (atCaret) lastNote = atCaret.note;
+      const previewSpan = atCaret || transposePreviewSpan(updated, range);
+      if (previewSpan) previewNote(updated, previewSpan.start, previewSpan.note);
       return;
     }
 

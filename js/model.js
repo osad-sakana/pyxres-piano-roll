@@ -356,12 +356,13 @@ const Model = (() => {
 
   // [start, end]に重なるノートの音程をsemitones分ずらす（ピアノロールの方向キー上下・
   // 選択範囲移調用の破壊的編集）。song.transposeの非破壊移調（transposeNote/transposeNotes、
-  // 再生・書き出し解決用）とは別物。範囲境界での分割はしない（copyRange/clearRangeと違い、
-  // ノート本数を変えると書き出し結果[sounds]が変わってしまうため）。
+  // 再生・書き出し解決用）とは別物。範囲境界での分割はしない。分割してもexpandPatternが
+  // 音価を列単位へ展開するため書き出し結果は変わらないが、↓で元に戻しても分割自体は
+  // 戻らず、エディタ上のノート構造（音価）だけが不可逆に失われてしまうため。
   // 対象ノートが1つでも音域(0〜NOTE_MAX)を外れる場合は全体を無変更で返す。このアプリに
   // Undoはなく方向キーの逆操作が実質のUndoなので、部分的なクランプは不可逆な情報損失になる。
   function transposeRange(pattern, start, end, semitones) {
-    if (semitones === 0) return pattern;
+    if (!Number.isInteger(semitones) || semitones === 0) return pattern;
     const lo = Math.max(0, start);
     const hi = Math.min(end, pattern.notes.length - 1);
     const starts = new Set();
