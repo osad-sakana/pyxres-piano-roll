@@ -209,7 +209,7 @@ const PianoRollView = (() => {
   function onKeyDown(event) {
     // 入力欄へのタイピングやダイアログ表示中は奪わない
     const tag = document.activeElement ? document.activeElement.tagName : "";
-    if (["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
+    if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(tag)) return;
     if (document.querySelector("dialog[open]")) return;
 
     const pattern = app.currentPattern();
@@ -499,7 +499,7 @@ const PianoRollView = (() => {
 
   function render(state) {
     const pattern = app.currentPattern();
-    const title = document.getElementById("piano-roll-title");
+    const title = document.getElementById("piano-roll-title-text");
     title.textContent = pattern
       ? `ピアノロール: ${pattern.name || pattern.id}`
       : "ピアノロール（パターン未選択）";

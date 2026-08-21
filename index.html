@@ -14,8 +14,7 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
 </head>
 <body>
 <header id="transport-bar">
-  <button id="btn-play-pattern" title="選択中パターンを再生">▶ パターン</button>
-  <button id="btn-play-song" title="選択中の曲を再生">▶ 曲</button>
+  <button id="btn-play-song" title="選択中の曲を再生" aria-pressed="false">▶ 曲</button>
   <button id="btn-stop">■ 停止</button>
   <label class="loop-label"><input type="checkbox" id="chk-loop"> ループ</label>
   <span class="spacer"></span>
@@ -54,7 +53,10 @@ if (localStorage.getItem("pyxel-music-editor-theme") === "dark") {
       <div id="lane-rows"></div>
     </section>
     <section id="piano-roll-section">
-      <h2 id="piano-roll-title">ピアノロール</h2>
+      <h2 id="piano-roll-title">
+        <span id="piano-roll-title-text">ピアノロール</span>
+        <button id="btn-play-pattern" title="選択中パターンを再生" aria-pressed="false">▶ パターン</button>
+      </h2>
       <p id="piano-roll-hint">クリック: 配置/削除（そのまま右へドラッグで音価） ／ 既存ノートのドラッグ: 移動 ／ 右端ドラッグ: 音価変更 ／ ←→: 列移動 ／ ↑↓: 移調 ／ Enter: 音符⇔休符 ／ Shift+←→・Shift+ドラッグ: 範囲選択 ／ Ctrl(Cmd)+C/X/V: コピー/カット/ペースト</p>
       <div id="piano-roll-ruler-wrap">
         <canvas id="piano-roll-ruler"></canvas>
