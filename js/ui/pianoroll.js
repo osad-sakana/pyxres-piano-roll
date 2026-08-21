@@ -149,7 +149,7 @@ const PianoRollView = (() => {
     const currentPattern = app.currentPattern();
     if (!currentPattern || currentPattern !== pattern) return;
     const patch = Selection.colDragSelection(pattern.notes.length, rawCol, rawCol);
-    drag = { mode: "ruler", anchorCol: patch.selectedCol };
+    drag = { mode: "ruler", anchorCol: patch.selectionAnchor };
     app.setState(patch);
   }
 
@@ -165,8 +165,9 @@ const PianoRollView = (() => {
       const anchor = state.selectionAnchor !== null
         ? state.selectionAnchor
         : state.selectedCol !== null ? state.selectedCol : cell.col;
-      drag = { mode: "select", anchor };
-      app.setState({ selectedCol: cell.col, selectionAnchor: anchor });
+      const patch = Selection.colDragSelection(pattern.notes.length, anchor, cell.col);
+      drag = { mode: "select", anchor: patch.selectionAnchor };
+      app.setState(patch);
       return;
     }
 

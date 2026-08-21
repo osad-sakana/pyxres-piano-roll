@@ -52,3 +52,18 @@ test("colDragSelection: 範囲外のアンカー列もクランプする", () =>
   const result = Selection.colDragSelection(64, -5, 10);
   assert.deepEqual(result, { selectedCol: 10, selectionAnchor: 0 });
 });
+
+test("colDragSelection: アンカー列が末尾を超える場合もクランプする", () => {
+  const result = Selection.colDragSelection(64, 200, 10);
+  assert.deepEqual(result, { selectedCol: 10, selectionAnchor: 63 });
+});
+
+test("colDragSelection: アンカー・現在列が逆方向にはみ出しても両端にクランプする", () => {
+  const result = Selection.colDragSelection(64, 200, -5);
+  assert.deepEqual(result, { selectedCol: 0, selectionAnchor: 63 });
+});
+
+test("colDragSelection: 列数1のパターンでは常に列0に丸められる", () => {
+  const result = Selection.colDragSelection(1, 5, -5);
+  assert.deepEqual(result, { selectedCol: 0, selectionAnchor: 0 });
+});
