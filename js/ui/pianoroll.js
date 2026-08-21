@@ -76,6 +76,18 @@ const PianoRollView = (() => {
     AudioEngine.play(AudioEngine.renderPreviewNote(pitch, tone, volume));
   }
 
+  // 範囲移調後のプレビュー対象スパンを1つ選ぶ（AudioEngineは同時に1音しか鳴らせないため）。
+  // キャレット列を優先し、覆っていなければ範囲を先頭から走査する
+  function transposePreviewSpan(pattern, selectedCol, range) {
+    const atCaret = Model.noteSpanAt(pattern, selectedCol);
+    if (atCaret) return atCaret;
+    for (let col = range.start; col <= range.end; col++) {
+      const span = Model.noteSpanAt(pattern, col);
+      if (span) return span;
+    }
+    return null;
+  }
+
   // パターン全体を差し替える形で更新する（Modelの音価ヘルパを使うため）
   function applyPattern(updated, patch = {}) {
     const state = app.getState();
@@ -338,13 +350,16 @@ const PianoRollView = (() => {
     if (!isCtrlOrCmd && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
       event.preventDefault(); // Shift併用時もページスクロールはさせない（範囲選択の対象外なだけ）
       if (event.shiftKey || state.selectedCol === null) return;
-      const span = Model.noteSpanAt(pattern, state.selectedCol);
-      if (!span) return; // 休符列は対象外
+      const range = selectionRange(state);
       const delta = event.key === "ArrowUp" ? 1 : -1;
-      const note = span.note + delta;
-      if (note < 0 || note > Model.NOTE_MAX) return; // 音域端では止める
-      place(span.start, note); // 音価は保たれる
-      previewNote(pattern, span.start, note);
+      const updated = Model.transposeRange(pattern, range.start, range.end, delta);
+      if (updated === pattern) return; // 対象なし、または範囲内の音が音域端を超える
+      applyPattern(updated); // patchなし: キャレット・選択範囲は維持する
+      // updated !== pattern は範囲内に対象ノートが存在したことを保証し、selectedColは常に
+      // range内にあるため、このフォールバック探索は必ず1つ見つける（nullにはならない）
+      const previewSpan = transposePreviewSpan(updated, state.selectedCol, range);
+      lastNote = previewSpan.note;
+      previewNote(updated, previewSpan.start, previewSpan.note);
       return;
     }
 
