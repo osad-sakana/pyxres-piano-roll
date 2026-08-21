@@ -18,7 +18,7 @@ const PianoRollView = (() => {
   let ctx = null;
   let rulerCanvas = null;
   let rulerCtx = null;
-  // ドラッグ状態: { mode: "move" | "resize" | "select", ... }
+  // ドラッグ状態: { mode: "move" | "resize" | "select" | "ruler", ... }
   let drag = null;
   // 直近に入力した音程。休符列でのEnter入力に使う
   let lastNote = 24;
@@ -112,24 +112,30 @@ const PianoRollView = (() => {
     applyPattern(Model.resizeNoteAt(app.currentPattern(), start, len));
   }
 
-  // ルーラー上のx座標から列インデックスを求める（rulerCanvas基準。translateXでスクロール
-  // 済みのため getBoundingClientRect() の値がそのままスクロール後の位置になる）
-  function rulerColAt(event) {
+  // ルーラー上のx座標から生の列インデックスを求める（クランプなし。KEY_W未満は負値になる）。
+  // rulerCanvasはtranslateXでスクロール済み表示になっているが、getBoundingClientRect()は
+  // 変形後の矩形を返すためスクロール量の補正は不要（本体canvasのpointAt/cellAtと同じ考え方）。
+  // mousedown/mousemove両方で使うことで、列変換ロジックの重複によるズレを防ぐ
+  function rulerRawColAt(event) {
     const rect = rulerCanvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    if (x < KEY_W) return null;
-    return Math.floor((x - KEY_W) / COL_W);
+    return Math.floor((event.clientX - rect.left - KEY_W) / COL_W);
   }
 
   function onRulerMouseDown(event) {
     if (event.button !== 0) return;
     const pattern = app.currentPattern();
     if (!pattern || pattern.notes.length === 0) return;
-    const col = rulerColAt(event);
-    if (col === null) return;
+    const rawCol = rulerRawColAt(event);
+    if (rawCol < 0) return; // 左端の鍵盤ラベル列にはみ出た分は無視
     event.preventDefault();
+    // mousedownの既定動作（フォーカス移動）を止めた分、入力欄が残ったままだと
+    // 直後のCtrl+Cが選択小節ではなく入力欄のテキストを拾ってしまうため明示的に外す
+    if (document.activeElement && document.activeElement !== document.body) {
+      document.activeElement.blur();
+    }
     const columnsPerBar = Model.columnsPerBar(app.currentSong());
     const cols = pattern.notes.length;
+    const col = Math.min(cols - 1, rawCol);
     drag = { mode: "ruler", cols, columnsPerBar, anchorCol: col, lastBar: Math.floor(col / columnsPerBar) };
     app.setState(Selection.barDragSelection(cols, columnsPerBar, col, col));
   }
@@ -192,9 +198,7 @@ const PianoRollView = (() => {
 
     if (drag.mode === "ruler") {
       // ルーラー外（本体canvas上など）へ出てもclientX基準で列だけは追従させる
-      const rect = rulerCanvas.getBoundingClientRect();
-      const rawCol = Math.floor((event.clientX - rect.left - KEY_W) / COL_W);
-      const col = Math.min(drag.cols - 1, Math.max(0, rawCol));
+      const col = Math.min(drag.cols - 1, Math.max(0, rulerRawColAt(event)));
       const bar = Math.floor(col / drag.columnsPerBar);
       if (bar === drag.lastBar) return; // 同じ小節内の移動では再描画しない
       drag = { ...drag, lastBar: bar };
@@ -491,7 +495,7 @@ const PianoRollView = (() => {
 
   // パターン内ローカルの小節番号ルーラー（1始まり）。本体canvasとは別canvasで、
   // ヒットテスト・クリック判定（cellAt/hitAt）には一切関与しない
-  function drawRuler(colors) {
+  function drawRuler(state, colors) {
     const pattern = app.currentPattern();
     const cols = pattern ? pattern.notes.length : 0;
     const columnsPerBar = Model.columnsPerBar(app.currentSong());
@@ -501,6 +505,17 @@ const PianoRollView = (() => {
     rulerCtx.fillStyle = colors.rulerBg;
     rulerCtx.fillRect(0, 0, rulerCanvas.width, rulerCanvas.height);
     if (!pattern) return;
+
+    // 選択範囲のハイライト（本体canvasの選択列描画と同じ範囲をルーラー側にも示す）
+    const range = selectionRange(state);
+    if (range) {
+      const start = Math.max(0, range.start);
+      const end = Math.min(cols - 1, range.end);
+      if (start <= end) {
+        rulerCtx.fillStyle = colors.selCol;
+        rulerCtx.fillRect(KEY_W + start * COL_W, 0, (end - start + 1) * COL_W, rulerCanvas.height);
+      }
+    }
 
     rulerCtx.font = "9px sans-serif";
     rulerCtx.fillStyle = colors.rulerLabel;
@@ -547,7 +562,7 @@ const PianoRollView = (() => {
       : "ピアノロール（パターン未選択）";
     const colors = rollColors(); // draw/drawRulerで使い回し、getComputedStyle呼び出しを1回に抑える
     draw(state, colors);
-    drawRuler(colors);
+    drawRuler(state, colors);
     syncRulerScroll(); // パターン切替でcanvas幅が変わってもスクロール位置を保つ
   }
 
