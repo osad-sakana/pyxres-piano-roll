@@ -80,6 +80,10 @@ const Storage = (() => {
     downloadBlob(bytes, `${title || "music"}.pyxres`, "application/zip");
   }
 
+  function downloadMidi(bytes, title) {
+    downloadBlob(bytes, `${title || "music"}.mid`, "audio/midi");
+  }
+
   function readProjectFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -104,6 +108,7 @@ const Storage = (() => {
     createAutosaver,
     downloadProjectJson,
     downloadPyxres,
+    downloadMidi,
     readProjectFile,
   };
 })();
