@@ -549,6 +549,48 @@ const Model = (() => {
     );
   }
 
+  // MIDI書き出し用に、音価を保持したまま1ノート=1イベントへ解決する。
+  // tick/durationはPyxelのtick(1/120秒)単位。移調・rateMode・空白セルはresolveChannelsと同じ規則。
+  function resolveSongNotes(song) {
+    const byId = new Map(song.patterns.map((p) => [p.id, p]));
+    const transpose = song.transpose || 0;
+    const channels = song.channels.map((cells) => {
+      const events = [];
+      let tick = 0;
+      for (const cell of cells) {
+        const pattern = cell !== null ? byId.get(cell) : null;
+        if (!pattern) {
+          tick += columnsPerBar(song) * bpmToSpeed(song.bpm);
+          continue;
+        }
+        const speed = patternSpeed(song, pattern);
+        const cols = pattern.notes.length;
+        const starts = [];
+        for (let i = 0; i < cols; i++) if (pattern.notes[i] >= 0) starts.push(i);
+        starts.forEach((col, k) => {
+          const nextStart = k + 1 < starts.length ? starts[k + 1] : cols;
+          const length = Math.min((pattern.lengths && pattern.lengths[col]) || 1, nextStart - col);
+          const volume = pattern.volumes[col % pattern.volumes.length];
+          if (volume <= 0) return; // 無音は休符扱い（再生と同じ）
+          events.push({
+            tick: tick + col * speed,
+            duration: length * speed,
+            note: transposeNote(pattern.notes[col], transpose),
+            tone: pattern.tones[col % pattern.tones.length],
+            volume,
+          });
+        });
+        tick += cols * speed;
+      }
+      return events;
+    });
+    return {
+      baseSpeed: bpmToSpeed(song.bpm),
+      beatsPerBar: columnsPerBar(song) / 4,
+      channels,
+    };
+  }
+
   function validatePattern(pattern) {
     const errors = [];
     if (pattern.notes.some((n) => !Number.isInteger(n) || n < NOTE_MIN || n > NOTE_MAX)) {
@@ -853,6 +895,7 @@ const Model = (() => {
     removeChannelCell,
     restCell,
     resolveChannels,
+    resolveSongNotes,
     bpmToSpeed,
     patternSpeed,
     transposeNote,

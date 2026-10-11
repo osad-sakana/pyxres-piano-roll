@@ -871,3 +871,55 @@ test("duplicatePatternInChannel: 同じパターンを複数回複製できる",
   assert.deepEqual(p.songs[0].channels[0], ["p1", "p1", "p1"]);
   assert.equal(p.songs[0].patterns.length, 1); // パターンは新規作成されない
 });
+
+test("resolveSongNotes: 音価を保持した1ノート=1イベントで返し、tick位置は実speed基準", () => {
+  let p = baseProject();
+  p = Model.updateSong(p, "s1", { bpm: 120 }); // base speed = 15
+  const song0 = p.songs[0];
+  const pat = song0.patterns[0];
+  const notes = [...pat.notes];
+  const lengths = [...pat.lengths];
+  notes[0] = 10; lengths[0] = 4;
+  notes[4] = 10; lengths[4] = 1; // 同音程が連続しても別ノート
+  notes[8] = 12; lengths[8] = 100; // 末尾でクランプ
+  p = Model.updateSong(p, "s1", {
+    patterns: song0.patterns.map((x) => ({ ...x, notes, lengths })),
+    channels: [[pat.id]],
+  });
+  const result = Model.resolveSongNotes(p.songs[0]);
+  assert.equal(result.baseSpeed, 15);
+  assert.equal(result.beatsPerBar, 4);
+  assert.deepEqual(
+    result.channels[0].map((n) => [n.tick, n.duration, n.note]),
+    [[0, 60, 10], [60, 15, 10], [120, (pat.notes.length - 8) * 15, 12]]
+  );
+});
+
+test("resolveSongNotes: 移調・空白セル・volume0・rateMode・3/4拍子を反映", () => {
+  let p = baseProject();
+  const song0 = p.songs[0];
+  const pat = song0.patterns[0];
+  const notes = [...pat.notes];
+  notes[0] = 58;
+  notes[1] = 20;
+  const volumes = pat.volumes.length ? pat.volumes : [7];
+  const patterns = song0.patterns.map((x) => ({
+    ...x,
+    notes,
+    volumes: Array(notes.length).fill(7).map((v, i) => (i === 1 ? 0 : v)),
+    rateMode: "double",
+  }));
+  p = Model.updateSong(p, "s1", {
+    bpm: 120,
+    transpose: 5,
+    timeSignature: "3/4",
+    patterns,
+    channels: [[null, pat.id]],
+  });
+  const result = Model.resolveSongNotes(p.songs[0]);
+  assert.equal(result.beatsPerBar, 3);
+  const [only, ...rest] = result.channels[0];
+  assert.equal(rest.length, 0); // volume 0 は休符として出力しない
+  // 空白セル = 12列 × speed15、先頭ノートはクランプ(59)、doubleはspeed 8
+  assert.deepEqual([only.tick, only.note, only.duration], [12 * 15, 59, 8]);
+});

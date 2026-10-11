@@ -136,7 +136,79 @@ const Exporter = (() => {
     return buildZip([{ name: "pyxel_resource.toml", data }]);
   }
 
-  return { crc32, generateToml, buildZip, buildPyxres };
+  // ---- 標準MIDI(SMF Type 1) ----
+  // MIDI tick = Pyxel tick × scale。四分音符(4列)がちょうど division tick になるよう
+  // division を 4×baseSpeed×scale（480以上）に取り、実機と同じ速さを丸め誤差なしで保つ。
+  function vlq(value) {
+    const bytes = [value & 0x7f];
+    for (let v = value >>> 7; v > 0; v >>>= 7) bytes.unshift((v & 0x7f) | 0x80);
+    return bytes;
+  }
+
+  function trackChunk(events) {
+    // 同tickではnote-off(order 0)をnote-on(order 1)より先に出す
+    const sorted = [...events].sort((a, b) => a.tick - b.tick || a.order - b.order);
+    const body = [];
+    let last = 0;
+    for (const ev of sorted) {
+      body.push(...vlq(ev.tick - last), ...ev.bytes);
+      last = ev.tick;
+    }
+    body.push(...vlq(0), 0xff, 0x2f, 0x00);
+    const chunk = new Uint8Array(8 + body.length);
+    chunk.set([0x4d, 0x54, 0x72, 0x6b]); // "MTrk"
+    new DataView(chunk.buffer).setUint32(4, body.length);
+    chunk.set(body, 8);
+    return chunk;
+  }
+
+  function midiNoteNumber(note, tone) {
+    const n = note + (tone === 3 ? 60 : 36); // Pyxel: 波形=36 / ノイズ=60
+    return Math.min(127, Math.max(0, n));
+  }
+
+  function buildMidi({ baseSpeed, beatsPerBar, channels }) {
+    const scale = Math.ceil(480 / (4 * baseSpeed));
+    const division = 4 * baseSpeed * scale;
+    const usPerQuarter = Math.round((baseSpeed * 1000000) / 30);
+    const denomPower = 2; // 分母4
+    const conductor = [
+      {
+        tick: 0,
+        order: 0,
+        bytes: [0xff, 0x51, 0x03, (usPerQuarter >> 16) & 0xff, (usPerQuarter >> 8) & 0xff, usPerQuarter & 0xff],
+      },
+      { tick: 0, order: 0, bytes: [0xff, 0x58, 0x04, beatsPerBar, denomPower, 24, 8] },
+    ];
+    const tracks = [trackChunk(conductor)];
+    channels.forEach((notes, ch) => {
+      const events = [];
+      for (const n of notes) {
+        const key = midiNoteNumber(n.note, n.tone);
+        const velocity = Math.max(1, Math.round((n.volume / 7) * 127));
+        events.push({ tick: n.tick * scale, order: 1, bytes: [0x90 | ch, key, velocity] });
+        events.push({ tick: (n.tick + n.duration) * scale, order: 0, bytes: [0x80 | ch, key, 0] });
+      }
+      tracks.push(trackChunk(events));
+    });
+    const header = new Uint8Array(14);
+    header.set([0x4d, 0x54, 0x68, 0x64]); // "MThd"
+    const dv = new DataView(header.buffer);
+    dv.setUint32(4, 6);
+    dv.setUint16(8, 1);
+    dv.setUint16(10, tracks.length);
+    dv.setUint16(12, division);
+    const out = new Uint8Array(tracks.reduce((a, t) => a + t.length, header.length));
+    out.set(header);
+    let pos = header.length;
+    for (const t of tracks) {
+      out.set(t, pos);
+      pos += t.length;
+    }
+    return out;
+  }
+
+  return { crc32, generateToml, buildZip, buildPyxres, buildMidi };
 })();
 
 if (typeof module !== "undefined") module.exports = Exporter;

@@ -110,8 +110,16 @@ const DialogsView = (() => {
     el("export-dialog").close();
   }
 
+  function doExportMidi() {
+    const song = app.currentSong();
+    if (!song) return;
+    const bytes = Exporter.buildMidi(Model.resolveSongNotes(song));
+    Storage.downloadMidi(bytes, song.name || app.getState().project.meta.title);
+  }
+
   function init(appRef) {
     app = appRef;
+    el("btn-export-midi").addEventListener("click", doExportMidi);
     el("btn-export").addEventListener("click", () => {
       renderSlots(app.getState());
       renderValidation(app.getState());
